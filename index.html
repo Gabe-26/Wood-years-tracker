@@ -707,7 +707,16 @@ function loadState() {
     if (custom) state.customLabels = JSON.parse(custom);
     const targets = localStorage.getItem('aii_wood_proj_targets');
     if (targets) state.projTargets = JSON.parse(targets);
+    const years = localStorage.getItem('aii_wood_years');
+    if (years) state.years = JSON.parse(years);
   } catch(e) {}
+}
+function saveYears() {
+  try {
+    localStorage.setItem('aii_wood_years', JSON.stringify(state.years));
+  } catch(e) {
+    alert('Could not save year data to localStorage (may be too large): ' + e.message);
+  }
 }
 function saveLabels() {
   localStorage.setItem('aii_wood_labels', JSON.stringify(state.itemLabels));
@@ -901,6 +910,7 @@ function handleFiles(files) {
         return cat !== null;
       });
       state.years[year] = { items: filtered, filename: file.name };
+      saveYears();
       updateUI();
     };
     reader.readAsText(file);
@@ -955,6 +965,7 @@ function updateYearList(years) {
 
 function removeYear(year) {
   delete state.years[year];
+  saveYears();
   updateUI();
 }
 

@@ -1,0 +1,1833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AII Wood — Sales Analysis & Projections</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #222222;
+    --surface3: #2a2a2a;
+    --border: #333;
+    --border2: #444;
+    --text: #e8e8e8;
+    --text2: #999;
+    --text3: #666;
+    --accent: #c8a84b;
+    --accent2: #e8c46a;
+    --green: #4caf7d;
+    --red: #e05c5c;
+    --blue: #5b9bd5;
+    --purple: #9b7fd4;
+    --orange: #e0885c;
+    --teal: #4cb8b8;
+
+    --cat-fence: #5b9bd5;
+    --cat-gate: #9b7fd4;
+    --cat-post: #c8a84b;
+    --cat-picket: #4caf7d;
+    --cat-stock: #4cb8b8;
+    --cat-pergola: #e0885c;
+    --cat-material: #999;
+    --cat-custom: #e05c5c;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+  .logo span { color: var(--text2); font-weight: 400; }
+  .header-meta { color: var(--text3); font-size: 11px; font-family: 'IBM Plex Mono', monospace; }
+
+  /* ── LAYOUT ── */
+  .app { display: flex; height: calc(100vh - 49px); }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: 260px;
+    min-width: 260px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .sidebar-section {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text3);
+    margin-bottom: 10px;
+  }
+
+  /* ── UPLOAD ZONE ── */
+  .upload-zone {
+    border: 1px dashed var(--border2);
+    border-radius: 4px;
+    padding: 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .upload-zone:hover { border-color: var(--accent); background: rgba(200,168,75,0.05); }
+  .upload-zone.drag-over { border-color: var(--accent); background: rgba(200,168,75,0.1); }
+  .upload-icon { font-size: 20px; margin-bottom: 4px; }
+  .upload-text { color: var(--text2); font-size: 11px; }
+  .upload-text strong { color: var(--accent); display: block; font-size: 12px; margin-bottom: 2px; }
+  #fileInput { display: none; }
+
+  /* ── YEAR CHIPS ── */
+  .year-list { display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: auto; }
+  .year-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+  }
+  .year-chip .y-label { color: var(--accent); font-weight: 600; }
+  .year-chip .y-count { color: var(--text3); font-size: 10px; }
+  .year-chip .y-remove {
+    cursor: pointer; color: var(--text3); font-size: 14px; line-height: 1;
+    transition: color 0.15s;
+  }
+  .year-chip .y-remove:hover { color: var(--red); }
+
+  /* ── FILTERS ── */
+  .filter-grid { display: flex; flex-direction: column; gap: 8px; }
+  .filter-row { display: flex; flex-direction: column; gap: 4px; }
+  .filter-row label { font-size: 10px; color: var(--text3); font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 0.08em; }
+  select, input[type="text"], input[type="number"] {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 8px;
+    border-radius: 3px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 12px;
+    width: 100%;
+    transition: border-color 0.2s;
+  }
+  select:focus, input:focus { outline: none; border-color: var(--accent); }
+  select option { background: var(--surface2); }
+
+  /* ── CATEGORY LEGEND ── */
+  .cat-legend { display: flex; flex-direction: column; gap: 5px; }
+  .cat-item {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; cursor: pointer;
+    padding: 3px 6px; border-radius: 3px;
+    transition: background 0.15s;
+    border: 1px solid transparent;
+  }
+  .cat-item:hover { background: var(--surface2); }
+  .cat-item.active { border-color: var(--border2); }
+  .cat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .cat-name { color: var(--text2); }
+  .cat-count { color: var(--text3); font-size: 10px; margin-left: auto; font-family: 'IBM Plex Mono', monospace; }
+
+  /* ── CUSTOM LABEL ── */
+  .label-mgmt { display: flex; flex-direction: column; gap: 6px; }
+  .label-input-row { display: flex; gap: 6px; }
+  .label-input-row input { flex: 1; }
+  .btn-sm {
+    background: var(--surface3);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    padding: 5px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+  }
+  .btn-sm:hover { background: var(--accent); color: #000; border-color: var(--accent); }
+  .btn-sm.accent { background: var(--accent); color: #000; border-color: var(--accent); }
+  .custom-labels-list { display: flex; flex-wrap: wrap; gap: 4px; }
+  .custom-label-tag {
+    background: var(--surface3);
+    border: 1px solid var(--border2);
+    border-radius: 3px;
+    padding: 2px 8px 2px 6px;
+    font-size: 10px;
+    color: var(--text2);
+    display: flex; align-items: center; gap: 4px;
+    cursor: pointer;
+  }
+  .custom-label-tag .del-label { color: var(--text3); font-size: 12px; }
+  .custom-label-tag:hover .del-label { color: var(--red); }
+
+  /* ── MAIN CONTENT ── */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── TABS ── */
+  .tabs {
+    display: flex;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    gap: 0;
+  }
+  .tab {
+    padding: 12px 18px;
+    font-size: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--text3);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+    letter-spacing: 0.05em;
+  }
+  .tab:hover { color: var(--text2); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── CONTENT PANELS ── */
+  .panel { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+  .panel.active { display: flex; }
+  .panel-scroll { flex: 1; overflow-y: auto; padding: 20px; }
+
+  /* ── TOOLBAR ── */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .toolbar-group { display: flex; align-items: center; gap: 6px; }
+  .toolbar-label { font-size: 10px; color: var(--text3); font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; white-space: nowrap; }
+
+  /* ── STATS BAR ── */
+  .stats-bar {
+    display: flex;
+    gap: 1px;
+    padding: 12px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .stat-card {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin: 0 2px;
+  }
+  .stat-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text3); font-family: 'IBM Plex Mono', monospace; margin-bottom: 4px; }
+  .stat-value { font-size: 20px; font-weight: 600; font-family: 'IBM Plex Mono', monospace; color: var(--accent); }
+  .stat-sub { font-size: 10px; color: var(--text3); margin-top: 2px; }
+
+  /* ── TABLE ── */
+  .table-wrap { overflow-x: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  thead th {
+    background: var(--surface2);
+    color: var(--text3);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 10px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    cursor: pointer;
+    user-select: none;
+  }
+  thead th:hover { color: var(--accent); }
+  thead th.sorted-asc::after { content: ' ↑'; color: var(--accent); }
+  thead th.sorted-desc::after { content: ' ↓'; color: var(--accent); }
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+  }
+  tbody tr:hover { background: var(--surface2); }
+  tbody tr.selected { background: rgba(200,168,75,0.08); }
+  tbody td { padding: 7px 10px; vertical-align: middle; white-space: nowrap; }
+  .td-code { color: var(--accent); font-weight: 600; font-size: 11px; }
+  .td-desc { color: var(--text2); font-family: 'IBM Plex Sans', sans-serif; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+  .td-num { text-align: right; color: var(--text); }
+  .td-num.zero { color: var(--text3); }
+  .td-pct { text-align: right; font-weight: 600; }
+  .pct-pos { color: var(--green); }
+  .pct-neg { color: var(--red); }
+  .pct-neutral { color: var(--text3); }
+
+  /* ── CATEGORY BADGE ── */
+  .cat-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+  }
+  .cat-badge:hover { opacity: 0.8; }
+
+  /* ── CHART AREA ── */
+  .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+  }
+  .chart-card.full { grid-column: 1 / -1; }
+  .chart-title {
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--text2);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .chart-container { position: relative; height: 240px; }
+  .chart-container.tall { height: 320px; }
+
+  /* ── PROJECTION PANEL ── */
+  .proj-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
+  .proj-period {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+  }
+  .proj-p-label { font-size: 10px; color: var(--text3); font-family: 'IBM Plex Mono', monospace; margin-bottom: 6px; }
+  .proj-p-base { font-size: 13px; color: var(--text2); font-family: 'IBM Plex Mono', monospace; margin-bottom: 6px; }
+  .proj-p-input {
+    display: flex; align-items: center; gap: 4px;
+  }
+  .proj-p-input input {
+    width: 60px;
+    text-align: right;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+  }
+  .proj-p-result { font-size: 14px; font-weight: 600; color: var(--accent); font-family: 'IBM Plex Mono', monospace; margin-top: 6px; }
+
+  /* ── EMPTY STATE ── */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 12px;
+    color: var(--text3);
+    text-align: center;
+    padding: 40px;
+  }
+  .empty-icon { font-size: 40px; opacity: 0.3; }
+  .empty-title { font-size: 14px; color: var(--text2); font-family: 'IBM Plex Mono', monospace; }
+  .empty-sub { font-size: 12px; max-width: 320px; line-height: 1.6; }
+
+  /* ── CATEGORY DROPDOWN ── */
+  .cat-select-dropdown {
+    position: fixed;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    z-index: 1000;
+    min-width: 140px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    overflow: hidden;
+  }
+  .cat-select-opt {
+    padding: 7px 12px;
+    cursor: pointer;
+    font-size: 11px;
+    display: flex; align-items: center; gap: 8px;
+    transition: background 0.1s;
+  }
+  .cat-select-opt:hover { background: var(--surface3); }
+
+  /* ── TOOLTIP ── */
+  .tooltip {
+    position: fixed;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    pointer-events: none;
+    z-index: 2000;
+    white-space: nowrap;
+    display: none;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+  /* ── MISC ── */
+  .divider { height: 1px; background: var(--border); margin: 8px 0; }
+  .flex-grow { flex: 1; }
+  .text-muted { color: var(--text3); }
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+  .period-selector { display: flex; gap: 4px; flex-wrap: wrap; }
+  .period-btn {
+    padding: 4px 9px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--surface2);
+    color: var(--text3);
+    font-size: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .period-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .period-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+  .search-input { width: 200px !important; }
+  .no-data { color: var(--text3); font-style: italic; font-size: 11px; padding: 20px; text-align: center; }
+
+  .proj-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(6,1fr);
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .proj-sum-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    text-align: center;
+  }
+  .proj-sum-p { font-size: 10px; color: var(--text3); font-family: 'IBM Plex Mono', monospace; margin-bottom: 4px; }
+  .proj-sum-base { font-size: 11px; color: var(--text2); font-family: 'IBM Plex Mono', monospace; }
+  .proj-sum-target { font-size: 14px; font-weight: 600; color: var(--accent); font-family: 'IBM Plex Mono', monospace; }
+  .proj-sum-pct { font-size: 10px; margin-top: 2px; font-family: 'IBM Plex Mono', monospace; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">AII <span>/</span> WOOD DEPT <span>/</span> SALES ANALYSIS</div>
+  <div class="header-meta" id="headerMeta">NO DATA LOADED</div>
+</header>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+
+    <!-- UPLOAD -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">Data Files</div>
+      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+        <div class="upload-icon">📂</div>
+        <div class="upload-text">
+          <strong>Upload CSV Files</strong>
+          One per year — drop or click
+        </div>
+      </div>
+      <input type="file" id="fileInput" accept=".csv" multiple>
+    </div>
+
+    <!-- LOADED YEARS -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">Loaded Years</div>
+      <div class="year-list" id="yearList">
+        <div class="text-muted" style="font-size:11px;">No files loaded</div>
+      </div>
+    </div>
+
+    <!-- FILTERS -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">Filters</div>
+      <div class="filter-grid">
+        <div class="filter-row">
+          <label>Category</label>
+          <select id="filterCat">
+            <option value="">All Categories</option>
+          </select>
+        </div>
+        <div class="filter-row">
+          <label>Search Item Code / Desc</label>
+          <input type="text" id="searchInput" placeholder="e.g. WOK6, ILLINOIS...">
+        </div>
+        <div class="filter-row">
+          <label>Prod Line</label>
+          <select id="filterProdLine">
+            <option value="">All Prod Lines</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- CATEGORIES -->
+    <div class="sidebar-section" style="flex:1;overflow-y:auto;">
+      <div class="sidebar-label">Categories</div>
+      <div class="cat-legend" id="catLegend"></div>
+      <div class="divider"></div>
+      <div class="sidebar-label">Custom Labels</div>
+      <div class="label-mgmt">
+        <div class="label-input-row">
+          <input type="text" id="newLabelInput" placeholder="Label name...">
+          <button class="btn-sm" onclick="addCustomLabel()">+</button>
+        </div>
+        <div class="custom-labels-list" id="customLabelsList"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- TABS -->
+    <div class="tabs">
+      <div class="tab active" data-tab="compare">COMPARE</div>
+      <div class="tab" data-tab="trends">TRENDS</div>
+      <div class="tab" data-tab="projections">PROJECTIONS</div>
+      <div class="tab" data-tab="items">ITEM DETAIL</div>
+    </div>
+
+    <!-- ═══════════════════════════════════
+         COMPARE TAB
+    ═══════════════════════════════════ -->
+    <div class="panel active" id="panel-compare">
+
+      <div class="toolbar">
+        <div class="toolbar-group">
+          <span class="toolbar-label">Base Year</span>
+          <select id="cmpBaseYear" style="width:90px;"></select>
+        </div>
+        <div class="toolbar-group">
+          <span class="toolbar-label">vs Year</span>
+          <select id="cmpVsYear" style="width:90px;"></select>
+        </div>
+        <div class="toolbar-group">
+          <span class="toolbar-label">Period</span>
+          <div class="period-selector" id="cmpPeriodSel"></div>
+        </div>
+        <div class="flex-grow"></div>
+        <button class="btn-sm accent" onclick="runCompare()">COMPARE</button>
+      </div>
+
+      <div class="stats-bar" id="cmpStats" style="display:none;"></div>
+
+      <div class="panel-scroll">
+        <div id="compareContent">
+          <div class="empty-state">
+            <div class="empty-icon">📊</div>
+            <div class="empty-title">No comparison yet</div>
+            <div class="empty-sub">Upload at least two years of CSV data, then select years and a period to compare.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════
+         TRENDS TAB
+    ═══════════════════════════════════ -->
+    <div class="panel" id="panel-trends">
+      <div class="toolbar">
+        <div class="toolbar-group">
+          <span class="toolbar-label">Period</span>
+          <div class="period-selector" id="trendPeriodSel"></div>
+        </div>
+        <div class="toolbar-group">
+          <span class="toolbar-label">View</span>
+          <select id="trendView" style="width:120px;">
+            <option value="category">By Category</option>
+            <option value="prodline">By Prod Line</option>
+            <option value="top20">Top 20 Items</option>
+          </select>
+        </div>
+        <div class="flex-grow"></div>
+        <button class="btn-sm accent" onclick="runTrends()">REFRESH</button>
+      </div>
+      <div class="panel-scroll">
+        <div id="trendsContent">
+          <div class="empty-state">
+            <div class="empty-icon">📈</div>
+            <div class="empty-title">No data loaded</div>
+            <div class="empty-sub">Upload CSV files to see trend charts across years.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════
+         PROJECTIONS TAB
+    ═══════════════════════════════════ -->
+    <div class="panel" id="panel-projections">
+      <div class="toolbar">
+        <div class="toolbar-group">
+          <span class="toolbar-label">Base Year</span>
+          <select id="projBaseYear" style="width:90px;"></select>
+        </div>
+        <div class="toolbar-group">
+          <span class="toolbar-label">Target Year</span>
+          <input type="number" id="projTargetYear" value="2026" style="width:80px;">
+        </div>
+        <div class="toolbar-group">
+          <span class="toolbar-label">Default Target %</span>
+          <input type="number" id="projDefaultPct" value="5" style="width:60px;">
+          <span style="color:var(--text3);font-size:11px;">%</span>
+        </div>
+        <div class="flex-grow"></div>
+        <button class="btn-sm" onclick="applyDefaultPct()">APPLY TO ALL</button>
+        <button class="btn-sm accent" onclick="runProjections()">CALCULATE</button>
+      </div>
+      <div class="panel-scroll">
+        <div id="projectionsContent">
+          <div class="empty-state">
+            <div class="empty-icon">🎯</div>
+            <div class="empty-title">Set your targets</div>
+            <div class="empty-sub">Select a base year, set per-period target percentages, and calculate projections for each item.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════
+         ITEM DETAIL TAB
+    ═══════════════════════════════════ -->
+    <div class="panel" id="panel-items">
+      <div class="toolbar">
+        <div class="toolbar-group">
+          <span class="toolbar-label">Item</span>
+          <select id="itemDetailSelect" style="width:280px;"></select>
+        </div>
+        <div class="flex-grow"></div>
+        <button class="btn-sm accent" onclick="runItemDetail()">LOAD</button>
+      </div>
+      <div class="panel-scroll">
+        <div id="itemDetailContent">
+          <div class="empty-state">
+            <div class="empty-icon">🔍</div>
+            <div class="empty-title">Select an item</div>
+            <div class="empty-sub">Choose any item code to see its full history across all loaded years, with period breakdown and year-over-year chart.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- CATEGORY DROPDOWN (floating) -->
+<div class="cat-select-dropdown" id="catDropdown" style="display:none;"></div>
+
+<!-- TOOLTIP -->
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+// DATA STORE
+// ═══════════════════════════════════════════════
+const state = {
+  years: {},          // { 2025: { items: [...] } }
+  itemLabels: {},     // { itemCode: 'Gate' }
+  customLabels: [],   // ['Special', 'Seasonal']
+  projTargets: {},    // { period: pct }  e.g. {1:5, 2:3, ...}
+  sortCol: null,
+  sortDir: 'asc',
+  activeFilter: { cat: '', search: '', prodLine: '' },
+  activeCatDropdown: null,
+};
+
+// Load from localStorage
+function loadState() {
+  try {
+    const labels = localStorage.getItem('aii_wood_labels');
+    if (labels) state.itemLabels = JSON.parse(labels);
+    const custom = localStorage.getItem('aii_wood_custom_labels');
+    if (custom) state.customLabels = JSON.parse(custom);
+    const targets = localStorage.getItem('aii_wood_proj_targets');
+    if (targets) state.projTargets = JSON.parse(targets);
+  } catch(e) {}
+}
+function saveLabels() {
+  localStorage.setItem('aii_wood_labels', JSON.stringify(state.itemLabels));
+}
+function saveCustomLabels() {
+  localStorage.setItem('aii_wood_custom_labels', JSON.stringify(state.customLabels));
+}
+function saveProjTargets() {
+  localStorage.setItem('aii_wood_proj_targets', JSON.stringify(state.projTargets));
+}
+
+// ═══════════════════════════════════════════════
+// CLASSIFICATION RULES
+// ═══════════════════════════════════════════════
+const PROD_LINE_CATS = {
+  '0500': 'Stock',
+  '0505': 'Gate',
+  '0510': 'Section',
+  '0515': 'Gate',
+  '0516': 'Gate',
+  '0520': 'Section',
+  '0525': 'mixed-picket-gate',
+  '0530': 'Post',
+  '0535': 'Post',
+  '0540': null, // excluded
+  '0550': 'Pickets & Rails',
+  '0555': 'Pickets & Rails',
+  '0560': 'mixed-lsr-gate',  // gates only
+  '0565': 'mixed-gate-only', // gates only
+  '0570': 'Pergola / Arbor',
+};
+
+const GATE_CODE_PATTERNS = [
+  /^.*G\d+.*$/,   // ends with G + digits somewhere
+  /G-CUS$/,
+  /G44$/, /G45$/, /G54$/, /G55$/, /G64$/, /G65$/, /G63$/, /G34$/, /G35$/,
+];
+
+const LSR_GATE_CODES = ['LSR2G','LSR3G','LSRG-CUS','PSR2G','PSR3G','PSRG-CUS'];
+
+function isGateByCode(code) {
+  // explicit gate suffixes
+  if (/G\d{2}$/.test(code)) return true;
+  if (code.endsWith('G-CUS')) return true;
+  if (/^(WOKG|SSG|CSG|WILG|WMDG|WILG|WNCG|WSCG|WNDG|WFLG|WHIG|WOKG|WNMG|WNEG|WDENG|WDALG|WBIRG|WATG|WMTG|WMOG|WUTG|WVTG|WKAG|WRDG|WNOG|WFIG|WLSG|W2DLG|W2SLG|W4SLG|W2KAG|WSCG|WNCG|WMDG|WHIG|WFLG|WNDG|WSDG|WCTG|WDALG|WMAG|WPAG|WSLG|WMDG|WRCG|WRIG|WSTG|WIRG)/.test(code)) return true;
+  if (/^(DRC\d+(G)\d+)/.test(code)) return true;
+  if (/^(RC\dG\d|RC\dG|LSR\dG|RC3G|RC2G)/.test(code)) return true;
+  if (/^WOKG/.test(code)) return true;
+  return false;
+}
+
+function isLSRGate(code) {
+  return LSR_GATE_CODES.some(p => code.startsWith(p));
+}
+
+function classifyItem(item) {
+  const pl = item.prodLine ? item.prodLine.toString().padStart(4,'0') : '';
+  const code = item.itemCode || '';
+  const desc = (item.description || '').toUpperCase();
+
+  // Check for manual override first
+  if (state.itemLabels[code]) return state.itemLabels[code];
+
+  const cat = PROD_LINE_CATS[pl];
+  if (cat === null) return null; // excluded
+
+  if (cat === 'mixed-lsr-gate') {
+    return isLSRGate(code) ? 'Gate' : null;
+  }
+  if (cat === 'mixed-gate-only') {
+    const isGate = isGateByCode(code) || desc.includes('GATE') ||
+      /\d+(G)\d+/.test(code) || code.includes('G4') || code.includes('G5') || code.includes('G6') || code.includes('G3');
+    return isGate ? 'Gate' : null;
+  }
+  if (cat === 'mixed-picket-gate') {
+    const isGate = isGateByCode(code) || desc.includes('GATE');
+    return isGate ? 'Gate' : 'Pickets & Rails';
+  }
+
+  return cat || 'Other';
+}
+
+// ═══════════════════════════════════════════════
+// CSV PARSER
+// ═══════════════════════════════════════════════
+function parseCSV(text, filename) {
+  // Extract year from filename
+  const yearMatch = filename.match(/\b(20\d{2})\b/);
+  const year = yearMatch ? parseInt(yearMatch[1]) : null;
+
+  const lines = text.trim().split('\n');
+  const items = [];
+  const seen = new Set();
+
+  for (const line of lines) {
+    if (!line.trim()) continue;
+
+    const cols = parseCSVLine(line);
+    if (cols.length < 80) continue;
+
+    // In this CSV format (AII export):
+    // idx 24 = Item Code
+    // idx 25 = Description (may be empty for -CUS items)
+    // idx 26 = "Prod Line:"
+    // idx 27 = prod line value (e.g. "0530")
+    // idx 70 = "Quantity Sold:"
+    // idx 71-82 = 12 period quantities
+
+    const itemCode = cols[24] ? cols[24].trim() : '';
+
+    // Skip header rows, totals, and non-item rows
+    if (!itemCode) continue;
+    if (itemCode === 'Item Code') continue;
+    if (itemCode.startsWith('Total For')) continue;
+    if (itemCode === 'Report Total:') continue;
+    if (itemCode === 'Quantity Sold:') continue;
+    if (itemCode === 'Warehouse:' || itemCode.startsWith('Warehouse')) continue;
+
+    // Skip if already seen
+    if (seen.has(itemCode)) continue;
+    seen.add(itemCode);
+
+    // Verify structure: col 26 should be "Prod Line:"
+    if (cols[26] && cols[26].trim() !== 'Prod Line:') continue;
+
+    const description = cols[25] ? cols[25].trim() : '';
+    const prodLine = cols[27] ? cols[27].trim() : '';
+
+    // col 70 should be "Quantity Sold:"
+    let periods = [0,0,0,0,0,0,0,0,0,0,0,0];
+    if (cols[70] && cols[70].trim() === 'Quantity Sold:') {
+      for (let p = 0; p < 12; p++) {
+        const raw = cols[71 + p] ? cols[71 + p].trim().replace(/,/g,'') : '0';
+        periods[p] = parseInt(raw) || 0;
+      }
+    } else {
+      // Fallback: search for first "Quantity Sold:" occurrence
+      for (let i = 60; i < cols.length - 12; i++) {
+        if (cols[i] && cols[i].trim() === 'Quantity Sold:') {
+          for (let p = 0; p < 12; p++) {
+            const raw = cols[i + 1 + p] ? cols[i + 1 + p].trim().replace(/,/g,'') : '0';
+            periods[p] = parseInt(raw) || 0;
+          }
+          break;
+        }
+      }
+    }
+
+    items.push({ itemCode, description, prodLine, periods });
+  }
+
+  return { year, items };
+}
+
+function parseCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i+1] === '"') { current += '"'; i++; }
+      else inQuotes = !inQuotes;
+    } else if (ch === ',' && !inQuotes) {
+      result.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current);
+  return result;
+}
+
+// ═══════════════════════════════════════════════
+// FILE UPLOAD
+// ═══════════════════════════════════════════════
+function handleFiles(files) {
+  Array.from(files).forEach(file => {
+    if (!file.name.endsWith('.csv')) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const { year, items } = parseCSV(e.target.result, file.name);
+      if (!year) {
+        alert(`Could not detect year from filename: ${file.name}\nPlease include the year in the filename (e.g. 2025_ITEMS_SOLD.csv)`);
+        return;
+      }
+      // Filter excluded items
+      const filtered = items.filter(item => {
+        const cat = classifyItem(item);
+        return cat !== null;
+      });
+      state.years[year] = { items: filtered, filename: file.name };
+      updateUI();
+    };
+    reader.readAsText(file);
+  });
+}
+
+document.getElementById('fileInput').addEventListener('change', e => handleFiles(e.target.files));
+
+const uploadZone = document.getElementById('uploadZone');
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => { e.preventDefault(); uploadZone.classList.remove('drag-over'); handleFiles(e.dataTransfer.files); });
+
+// ═══════════════════════════════════════════════
+// UI UPDATE
+// ═══════════════════════════════════════════════
+function updateUI() {
+  const years = getSortedYears();
+  updateYearList(years);
+  updateYearSelects(years);
+  updateCatLegend();
+  updateProdLineFilter();
+  updateItemDetailSelect();
+  updateHeaderMeta(years);
+  updatePeriodSelectors();
+  updateCustomLabelsList();
+}
+
+function getSortedYears() {
+  return Object.keys(state.years).map(Number).sort();
+}
+
+function updateHeaderMeta(years) {
+  const el = document.getElementById('headerMeta');
+  if (!years.length) { el.textContent = 'NO DATA LOADED'; return; }
+  const totalItems = [...new Set(years.flatMap(y => state.years[y].items.map(i => i.itemCode)))].length;
+  el.textContent = `${years.length} YEAR${years.length>1?'S':''} LOADED  ·  ${years[0]}–${years[years.length-1]}  ·  ${totalItems} ITEMS`;
+}
+
+function updateYearList(years) {
+  const el = document.getElementById('yearList');
+  if (!years.length) { el.innerHTML = '<div class="text-muted" style="font-size:11px;">No files loaded</div>'; return; }
+  el.innerHTML = years.map(y => {
+    const count = state.years[y].items.length;
+    return `<div class="year-chip">
+      <span class="y-label">${y}</span>
+      <span class="y-count">${count} items</span>
+      <span class="y-remove" onclick="removeYear(${y})">×</span>
+    </div>`;
+  }).join('');
+}
+
+function removeYear(year) {
+  delete state.years[year];
+  updateUI();
+}
+
+function updateYearSelects(years) {
+  ['cmpBaseYear','cmpVsYear','projBaseYear'].forEach(id => {
+    const el = document.getElementById(id);
+    const cur = el.value;
+    el.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+    if (cur && years.includes(parseInt(cur))) el.value = cur;
+  });
+  // Default: base = earlier, vs = later
+  if (years.length >= 2) {
+    document.getElementById('cmpBaseYear').value = years[years.length-2];
+    document.getElementById('cmpVsYear').value = years[years.length-1];
+    document.getElementById('projBaseYear').value = years[years.length-1];
+  }
+}
+
+function updatePeriodSelectors() {
+  ['cmpPeriodSel','trendPeriodSel'].forEach(id => {
+    const el = document.getElementById(id);
+    const hasAll = id === 'cmpPeriodSel';
+    el.innerHTML = (hasAll ? '<div class="period-btn active" data-p="0">ALL</div>' : '') +
+      Array.from({length:12},(_,i)=>`<div class="period-btn${id==='trendPeriodSel'&&i===0?' active':''}" data-p="${i+1}">P${i+1}</div>`).join('');
+    el.querySelectorAll('.period-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        el.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+  });
+}
+
+function getActivePeriod(selId) {
+  const el = document.getElementById(selId);
+  const active = el ? el.querySelector('.period-btn.active') : null;
+  return active ? parseInt(active.dataset.p) : 0;
+}
+
+// ═══════════════════════════════════════════════
+// CATEGORIES
+// ═══════════════════════════════════════════════
+const BASE_CATEGORIES = ['Section','Gate','Post','Pickets & Rails','Stock','Pergola / Arbor','Other'];
+const CAT_COLORS = {
+  'Section': 'var(--cat-fence)',
+  'Gate': 'var(--cat-gate)',
+  'Post': 'var(--cat-post)',
+  'Pickets & Rails': 'var(--cat-picket)',
+  'Stock': 'var(--cat-stock)',
+  'Pergola / Arbor': 'var(--cat-pergola)',
+  'Other': 'var(--cat-material)',
+};
+
+function getCatColor(cat) {
+  return CAT_COLORS[cat] || 'var(--cat-custom)';
+}
+
+function getAllCategories() {
+  const cats = new Set([...BASE_CATEGORIES, ...state.customLabels]);
+  return [...cats];
+}
+
+function updateCatLegend() {
+  const el = document.getElementById('catLegend');
+  const years = getSortedYears();
+  const allItems = getAllUniqueItems();
+  const counts = {};
+  allItems.forEach(item => {
+    const cat = getEffectiveCat(item.itemCode, item);
+    if (cat) counts[cat] = (counts[cat]||0)+1;
+  });
+
+  const cats = getAllCategories();
+  el.innerHTML = cats.map(cat => {
+    const color = getCatColor(cat);
+    const count = counts[cat] || 0;
+    const isActive = state.activeFilter.cat === cat;
+    return `<div class="cat-item ${isActive?'active':''}" onclick="toggleCatFilter('${cat}')">
+      <div class="cat-dot" style="background:${color}"></div>
+      <span class="cat-name">${cat}</span>
+      <span class="cat-count">${count}</span>
+    </div>`;
+  }).join('');
+
+  // Also update filter select
+  const filterEl = document.getElementById('filterCat');
+  filterEl.innerHTML = '<option value="">All Categories</option>' +
+    cats.map(c => `<option value="${c}"${state.activeFilter.cat===c?' selected':''}>${c}</option>`).join('');
+}
+
+function toggleCatFilter(cat) {
+  state.activeFilter.cat = state.activeFilter.cat === cat ? '' : cat;
+  document.getElementById('filterCat').value = state.activeFilter.cat;
+  updateCatLegend();
+}
+
+function updateProdLineFilter() {
+  const years = getSortedYears();
+  const prodLines = new Set();
+  years.forEach(y => state.years[y].items.forEach(i => { if (i.prodLine) prodLines.add(i.prodLine); }));
+  const el = document.getElementById('filterProdLine');
+  el.innerHTML = '<option value="">All Prod Lines</option>' +
+    [...prodLines].sort().map(pl => `<option value="${pl}">${pl}</option>`).join('');
+}
+
+function updateItemDetailSelect() {
+  const allItems = getAllUniqueItems();
+  const el = document.getElementById('itemDetailSelect');
+  el.innerHTML = allItems.map(i =>
+    `<option value="${i.itemCode}">${i.itemCode}${i.description?' — '+i.description.slice(0,50):''}</option>`
+  ).join('');
+}
+
+function getAllUniqueItems() {
+  const years = getSortedYears();
+  const map = new Map();
+  years.forEach(y => {
+    state.years[y].items.forEach(item => {
+      if (!map.has(item.itemCode)) map.set(item.itemCode, item);
+    });
+  });
+  return [...map.values()].sort((a,b) => a.itemCode.localeCompare(b.itemCode));
+}
+
+function getEffectiveCat(code, item) {
+  if (state.itemLabels[code]) return state.itemLabels[code];
+  return classifyItem(item);
+}
+
+function getFilteredItems() {
+  const allItems = getAllUniqueItems();
+  const { cat, search, prodLine } = state.activeFilter;
+  return allItems.filter(item => {
+    if (cat) {
+      const ic = getEffectiveCat(item.itemCode, item);
+      if (ic !== cat) return false;
+    }
+    if (search) {
+      const s = search.toLowerCase();
+      if (!item.itemCode.toLowerCase().includes(s) && !item.description.toLowerCase().includes(s)) return false;
+    }
+    if (prodLine && item.prodLine !== prodLine) return false;
+    return true;
+  });
+}
+
+// ═══════════════════════════════════════════════
+// CUSTOM LABELS
+// ═══════════════════════════════════════════════
+function addCustomLabel() {
+  const input = document.getElementById('newLabelInput');
+  const val = input.value.trim();
+  if (!val || state.customLabels.includes(val)) return;
+  state.customLabels.push(val);
+  saveCustomLabels();
+  input.value = '';
+  updateCatLegend();
+  updateCustomLabelsList();
+}
+
+function removeCustomLabel(label) {
+  state.customLabels = state.customLabels.filter(l => l !== label);
+  // Remove from item labels
+  Object.keys(state.itemLabels).forEach(k => { if (state.itemLabels[k] === label) delete state.itemLabels[k]; });
+  saveCustomLabels();
+  saveLabels();
+  updateCatLegend();
+  updateCustomLabelsList();
+}
+
+function updateCustomLabelsList() {
+  const el = document.getElementById('customLabelsList');
+  el.innerHTML = state.customLabels.map(l =>
+    `<div class="custom-label-tag" onclick="removeCustomLabel('${l}')">
+      <span>${l}</span><span class="del-label">×</span>
+    </div>`
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════
+// FILTER EVENTS
+// ═══════════════════════════════════════════════
+document.getElementById('filterCat').addEventListener('change', e => {
+  state.activeFilter.cat = e.target.value;
+  updateCatLegend();
+});
+document.getElementById('searchInput').addEventListener('input', e => {
+  state.activeFilter.search = e.target.value;
+});
+document.getElementById('filterProdLine').addEventListener('change', e => {
+  state.activeFilter.prodLine = e.target.value;
+});
+
+// ═══════════════════════════════════════════════
+// CATEGORY DROPDOWN
+// ═══════════════════════════════════════════════
+function showCatDropdown(code, item, x, y) {
+  const dd = document.getElementById('catDropdown');
+  const cats = getAllCategories();
+  const current = getEffectiveCat(code, item);
+  dd.innerHTML = cats.map(c =>
+    `<div class="cat-select-opt ${c===current?'active':''}" onclick="assignCat('${code}','${c}')">
+      <div class="cat-dot" style="background:${getCatColor(c)};"></div>
+      ${c}${c===current?' ✓':''}
+    </div>`
+  ).join('') +
+  `<div class="cat-select-opt" style="border-top:1px solid var(--border);color:var(--text3);" onclick="clearCat('${code}')">↩ Auto-detect</div>`;
+  dd.style.left = x+'px';
+  dd.style.top = y+'px';
+  dd.style.display = 'block';
+  state.activeCatDropdown = { code, item };
+}
+
+function assignCat(code, cat) {
+  state.itemLabels[code] = cat;
+  saveLabels();
+  hideCatDropdown();
+  updateCatLegend();
+  refreshCurrentPanel();
+}
+
+function clearCat(code) {
+  delete state.itemLabels[code];
+  saveLabels();
+  hideCatDropdown();
+  updateCatLegend();
+  refreshCurrentPanel();
+}
+
+function hideCatDropdown() {
+  document.getElementById('catDropdown').style.display = 'none';
+  state.activeCatDropdown = null;
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#catDropdown') && !e.target.closest('.cat-badge')) hideCatDropdown();
+});
+
+// ═══════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-'+tab.dataset.tab).classList.add('active');
+  });
+});
+
+function getActiveTab() {
+  const t = document.querySelector('.tab.active');
+  return t ? t.dataset.tab : 'compare';
+}
+
+function refreshCurrentPanel() {
+  const tab = getActiveTab();
+  if (tab === 'compare') runCompare();
+  else if (tab === 'trends') runTrends();
+  else if (tab === 'projections') runProjections();
+  else if (tab === 'items') runItemDetail();
+}
+
+// ═══════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════
+function fmt(n) { return n === 0 ? '—' : n.toLocaleString(); }
+function fmtPct(pct) {
+  if (pct === null || isNaN(pct)) return '—';
+  const sign = pct >= 0 ? '+' : '';
+  return `${sign}${pct.toFixed(1)}%`;
+}
+function pctClass(pct) {
+  if (pct === null || isNaN(pct)) return 'pct-neutral';
+  return pct > 0 ? 'pct-pos' : pct < 0 ? 'pct-neg' : 'pct-neutral';
+}
+function calcPct(base, compare) {
+  if (base === 0 && compare === 0) return 0;
+  if (base === 0) return null;
+  return ((compare - base) / base) * 100;
+}
+function getPeriodTotal(item, period) {
+  if (period === 0) return item.periods.reduce((a,b)=>a+b, 0);
+  return item.periods[period-1] || 0;
+}
+function getItemForYear(year, code) {
+  if (!state.years[year]) return null;
+  return state.years[year].items.find(i => i.itemCode === code) || null;
+}
+function catBadge(cat, code, item) {
+  const color = getCatColor(cat);
+  return `<span class="cat-badge" style="background:${color}22;color:${color};border-color:${color}44;"
+    onclick="event.stopPropagation();showCatDropdown('${code}',{itemCode:'${code}',description:'',prodLine:'${item.prodLine||''}'},event.clientX,event.clientY)">
+    ${cat}
+  </span>`;
+}
+
+// ═══════════════════════════════════════════════
+// COMPARE TAB
+// ═══════════════════════════════════════════════
+let compareChartInst = null;
+
+function runCompare() {
+  const baseYear = parseInt(document.getElementById('cmpBaseYear').value);
+  const vsYear = parseInt(document.getElementById('cmpVsYear').value);
+  const period = getActivePeriod('cmpPeriodSel');
+
+  if (!state.years[baseYear] || !state.years[vsYear]) {
+    document.getElementById('compareContent').innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Missing data</div><div class="empty-sub">Load both years first.</div></div>';
+    return;
+  }
+
+  const items = getFilteredItems();
+  const rows = [];
+  let totalBase = 0, totalVs = 0;
+
+  items.forEach(item => {
+    const baseItem = getItemForYear(baseYear, item.itemCode);
+    const vsItem = getItemForYear(vsYear, item.itemCode);
+    const baseQty = baseItem ? getPeriodTotal(baseItem, period) : 0;
+    const vsQty = vsItem ? getPeriodTotal(vsItem, period) : 0;
+    if (baseQty === 0 && vsQty === 0) return;
+    const pct = calcPct(baseQty, vsQty);
+    const cat = getEffectiveCat(item.itemCode, item);
+    rows.push({ ...item, baseQty, vsQty, pct, cat });
+    totalBase += baseQty;
+    totalVs += vsQty;
+  });
+
+  // Sort
+  if (state.sortCol) {
+    rows.sort((a,b) => {
+      let va = a[state.sortCol], vb = b[state.sortCol];
+      if (typeof va === 'string') va = va.toLowerCase(), vb = vb.toLowerCase();
+      if (va === null) va = Infinity; if (vb === null) vb = Infinity;
+      return state.sortDir === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
+    });
+  }
+
+  const totalPct = calcPct(totalBase, totalVs);
+  const statsEl = document.getElementById('cmpStats');
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = `
+    <div class="stat-card"><div class="stat-label">Items Compared</div><div class="stat-value">${rows.length}</div><div class="stat-sub">filtered</div></div>
+    <div class="stat-card"><div class="stat-label">${baseYear} Total</div><div class="stat-value">${totalBase.toLocaleString()}</div><div class="stat-sub">${period===0?'Full Year':'Period '+period}</div></div>
+    <div class="stat-card"><div class="stat-label">${vsYear} Total</div><div class="stat-value">${totalVs.toLocaleString()}</div><div class="stat-sub">${period===0?'Full Year':'Period '+period}</div></div>
+    <div class="stat-card"><div class="stat-label">Change</div><div class="stat-value" style="color:${totalPct>=0?'var(--green)':'var(--red)'}">${fmtPct(totalPct)}</div><div class="stat-sub">${(totalVs-totalBase).toLocaleString()}</div></div>
+  `;
+
+  const colLabel = period === 0 ? 'Full Year' : `Period ${period}`;
+  const thStyle = (col) => `onclick="sortTable('${col}')" class="${state.sortCol===col?(state.sortDir==='asc'?'sorted-asc':'sorted-desc'):''}"`;
+
+  document.getElementById('compareContent').innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th ${thStyle('itemCode')}>Item Code</th>
+            <th>Description</th>
+            <th>Category</th>
+            <th ${thStyle('prodLine')}>Prod Line</th>
+            <th ${thStyle('baseQty')} style="text-align:right">${baseYear} ${colLabel}</th>
+            <th ${thStyle('vsQty')} style="text-align:right">${vsYear} ${colLabel}</th>
+            <th ${thStyle('pct')} style="text-align:right">Change</th>
+            <th style="text-align:right">Diff</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td class="td-code">${r.itemCode}</td>
+              <td class="td-desc" title="${r.description}">${r.description||'—'}</td>
+              <td>${catBadge(r.cat||'Other', r.itemCode, r)}</td>
+              <td class="text-muted mono">${r.prodLine||'—'}</td>
+              <td class="td-num ${r.baseQty===0?'zero':''}">${fmt(r.baseQty)}</td>
+              <td class="td-num ${r.vsQty===0?'zero':''}">${fmt(r.vsQty)}</td>
+              <td class="td-pct ${pctClass(r.pct)}">${fmtPct(r.pct)}</td>
+              <td class="td-num" style="color:${r.vsQty-r.baseQty>=0?'var(--green)':'var(--red)'}">${r.vsQty-r.baseQty>=0?'+':''}${(r.vsQty-r.baseQty).toLocaleString()}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    ${rows.length === 0 ? '<div class="no-data">No items match current filters.</div>' : ''}
+  `;
+}
+
+function sortTable(col) {
+  if (state.sortCol === col) state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+  else { state.sortCol = col; state.sortDir = 'desc'; }
+  runCompare();
+}
+
+// ═══════════════════════════════════════════════
+// TRENDS TAB
+// ═══════════════════════════════════════════════
+const trendCharts = {};
+
+function runTrends() {
+  const years = getSortedYears();
+  if (years.length < 2) {
+    document.getElementById('trendsContent').innerHTML = '<div class="empty-state"><div class="empty-icon">📈</div><div class="empty-title">Need at least 2 years</div><div class="empty-sub">Upload more CSV files.</div></div>';
+    return;
+  }
+
+  const period = getActivePeriod('trendPeriodSel');
+  const view = document.getElementById('trendView').value;
+  const items = getFilteredItems();
+
+  // Destroy old charts
+  Object.values(trendCharts).forEach(c => c.destroy());
+
+  if (view === 'category') renderTrendsByCategory(years, items, period);
+  else if (view === 'prodline') renderTrendsByProdLine(years, items, period);
+  else renderTrendsTop20(years, items, period);
+}
+
+function renderTrendsByCategory(years, items, period) {
+  const cats = getAllCategories();
+  const data = {};
+  cats.forEach(cat => { data[cat] = years.map(y => 0); });
+
+  items.forEach(item => {
+    const cat = getEffectiveCat(item.itemCode, item) || 'Other';
+    if (!data[cat]) return;
+    years.forEach((y, yi) => {
+      const yearItem = getItemForYear(y, item.itemCode);
+      if (yearItem) data[cat][yi] += getPeriodTotal(yearItem, period);
+    });
+  });
+
+  const activeCats = cats.filter(c => data[c] && data[c].some(v => v > 0));
+  const colors = activeCats.map(c => getCatColor(c).replace('var(', '').replace(')', ''));
+
+  const palMap = {
+    '--cat-fence': '#5b9bd5', '--cat-gate': '#9b7fd4', '--cat-post': '#c8a84b',
+    '--cat-picket': '#4caf7d', '--cat-stock': '#4cb8b8', '--cat-pergola': '#e0885c',
+    '--cat-material': '#999', '--cat-custom': '#e05c5c',
+  };
+  const resolvedColors = activeCats.map(c => palMap[getCatColor(c).replace('var(','').replace(')','')]||'#888');
+
+  const chartsHTML = activeCats.map(cat => `
+    <div class="chart-card">
+      <div class="chart-title">${cat} — ${period===0?'Full Year':'Period '+period}</div>
+      <div class="chart-container"><canvas id="trendChart_${cat.replace(/\W/g,'_')}"></canvas></div>
+    </div>
+  `).join('');
+
+  // Big combined chart
+  document.getElementById('trendsContent').innerHTML = `
+    <div class="chart-card full" style="margin-bottom:16px;">
+      <div class="chart-title">All Categories — Year Over Year (${period===0?'Full Year':'Period '+period})</div>
+      <div class="chart-container tall"><canvas id="trendChartAll"></canvas></div>
+    </div>
+    <div class="chart-grid">${chartsHTML}</div>
+  `;
+
+  // Combined chart
+  const allCtx = document.getElementById('trendChartAll').getContext('2d');
+  trendCharts['all'] = new Chart(allCtx, {
+    type: 'bar',
+    data: {
+      labels: years.map(String),
+      datasets: activeCats.map((cat, i) => ({
+        label: cat,
+        data: data[cat],
+        backgroundColor: resolvedColors[i] + '99',
+        borderColor: resolvedColors[i],
+        borderWidth: 1,
+      }))
+    },
+    options: chartOpts('Quantity Sold', true)
+  });
+
+  // Per-category line charts
+  activeCats.forEach(cat => {
+    const id = `trendChart_${cat.replace(/\W/g,'_')}`;
+    const ctx = document.getElementById(id);
+    if (!ctx) return;
+    trendCharts[cat] = new Chart(ctx.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: years.map(String),
+        datasets: [{
+          label: cat,
+          data: data[cat],
+          borderColor: palMap[getCatColor(cat).replace('var(','').replace(')','')]||'#888',
+          backgroundColor: (palMap[getCatColor(cat).replace('var(','').replace(')','')]||'#888') + '22',
+          borderWidth: 2,
+          pointRadius: 4,
+          fill: true,
+          tension: 0.3,
+        }]
+      },
+      options: chartOpts('Quantity Sold', false)
+    });
+  });
+}
+
+function renderTrendsTop20(years, items, period) {
+  // Get top 20 by most recent year total
+  const latestYear = years[years.length-1];
+  const scored = items.map(item => {
+    const yi = getItemForYear(latestYear, item.itemCode);
+    return { item, total: yi ? getPeriodTotal(yi, period) : 0 };
+  }).sort((a,b) => b.total - a.total).slice(0, 20);
+
+  const colors = ['#c8a84b','#5b9bd5','#4caf7d','#9b7fd4','#e0885c','#4cb8b8','#e05c5c','#d45b9b','#7fd48e','#5bd4c8'];
+
+  document.getElementById('trendsContent').innerHTML = `
+    <div class="chart-card full">
+      <div class="chart-title">Top 20 Items — Year Over Year (${period===0?'Full Year':'Period '+period})</div>
+      <div class="chart-container tall"><canvas id="top20Chart"></canvas></div>
+    </div>
+  `;
+
+  const ctx = document.getElementById('top20Chart').getContext('2d');
+  trendCharts['top20'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: scored.map(s => s.item.itemCode),
+      datasets: years.map((y, yi) => ({
+        label: String(y),
+        data: scored.map(s => {
+          const yi2 = getItemForYear(y, s.item.itemCode);
+          return yi2 ? getPeriodTotal(yi2, period) : 0;
+        }),
+        backgroundColor: colors[yi % colors.length] + '99',
+        borderColor: colors[yi % colors.length],
+        borderWidth: 1,
+      }))
+    },
+    options: chartOpts('Quantity Sold', true)
+  });
+}
+
+function renderTrendsByProdLine(years, items, period) {
+  const prodLines = [...new Set(items.map(i=>i.prodLine).filter(Boolean))].sort();
+  const data = {};
+  prodLines.forEach(pl => data[pl] = years.map(()=>0));
+  items.forEach(item => {
+    const pl = item.prodLine;
+    if (!pl || !data[pl]) return;
+    years.forEach((y, yi) => {
+      const yi2 = getItemForYear(y, item.itemCode);
+      if (yi2) data[pl][yi] += getPeriodTotal(yi2, period);
+    });
+  });
+
+  document.getElementById('trendsContent').innerHTML = `
+    <div class="chart-card full">
+      <div class="chart-title">By Prod Line — Year Over Year (${period===0?'Full Year':'Period '+period})</div>
+      <div class="chart-container tall"><canvas id="plChart"></canvas></div>
+    </div>
+  `;
+
+  const colors = ['#c8a84b','#5b9bd5','#4caf7d','#9b7fd4','#e0885c','#4cb8b8','#e05c5c'];
+  const ctx = document.getElementById('plChart').getContext('2d');
+  trendCharts['pl'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: years.map(String),
+      datasets: prodLines.map((pl, i) => ({
+        label: pl,
+        data: data[pl],
+        backgroundColor: colors[i%colors.length]+'99',
+        borderColor: colors[i%colors.length],
+        borderWidth: 1,
+      }))
+    },
+    options: chartOpts('Quantity Sold', true)
+  });
+}
+
+function chartOpts(yLabel, stacked) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: '#999', font: { family: 'IBM Plex Mono', size: 10 }, boxWidth: 12 } },
+      tooltip: { backgroundColor: '#1a1a1a', borderColor: '#444', borderWidth: 1, titleColor: '#c8a84b', bodyColor: '#ccc', titleFont: { family: 'IBM Plex Mono' }, bodyFont: { family: 'IBM Plex Mono', size: 11 } }
+    },
+    scales: {
+      x: { stacked, grid: { color: '#2a2a2a' }, ticks: { color: '#666', font: { family: 'IBM Plex Mono', size: 10 } } },
+      y: { stacked, grid: { color: '#2a2a2a' }, ticks: { color: '#666', font: { family: 'IBM Plex Mono', size: 10 } }, title: { display: true, text: yLabel, color: '#555', font: { family: 'IBM Plex Mono', size: 10 } } }
+    }
+  };
+}
+
+// ═══════════════════════════════════════════════
+// PROJECTIONS TAB
+// ═══════════════════════════════════════════════
+let projChart = null;
+
+function applyDefaultPct() {
+  const pct = parseFloat(document.getElementById('projDefaultPct').value) || 0;
+  for (let p = 1; p <= 12; p++) state.projTargets[p] = pct;
+  saveProjTargets();
+  // Update all inputs
+  for (let p = 1; p <= 12; p++) {
+    const el = document.getElementById(`projPct_${p}`);
+    if (el) el.value = pct;
+  }
+  recalcProjections();
+}
+
+function runProjections() {
+  const baseYear = parseInt(document.getElementById('projBaseYear').value);
+  const targetYear = parseInt(document.getElementById('projTargetYear').value) || 2026;
+  if (!state.years[baseYear]) {
+    document.getElementById('projectionsContent').innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Load base year first</div></div>';
+    return;
+  }
+
+  // Initialize targets if needed
+  for (let p = 1; p <= 12; p++) {
+    if (state.projTargets[p] === undefined) state.projTargets[p] = 0;
+  }
+
+  const items = getFilteredItems();
+  const baseItems = items.map(item => {
+    const bi = getItemForYear(baseYear, item.itemCode);
+    return { ...item, periods: bi ? bi.periods : [0,0,0,0,0,0,0,0,0,0,0,0] };
+  });
+
+  // Period target inputs
+  const periodInputsHTML = `
+    <div class="proj-summary-grid" id="projSummaryGrid">
+      ${Array.from({length:12},(_,i)=>{
+        const p = i+1;
+        const pct = state.projTargets[p]||0;
+        const baseTotal = baseItems.reduce((s,it)=>s+it.periods[i],0);
+        const projTotal = Math.round(baseTotal * (1 + pct/100));
+        return `<div class="proj-sum-card">
+          <div class="proj-sum-p">P${p}</div>
+          <div class="proj-sum-base">${baseTotal.toLocaleString()}</div>
+          <div style="display:flex;align-items:center;gap:4px;justify-content:center;margin:4px 0;">
+            <input type="number" id="projPct_${p}" value="${pct}" step="0.5" style="width:55px;text-align:center;font-size:11px;" oninput="updateProjTarget(${p},this.value)">
+            <span style="color:var(--text3);font-size:10px;">%</span>
+          </div>
+          <div class="proj-sum-target" id="projSumTarget_${p}">${projTotal.toLocaleString()}</div>
+          <div class="proj-sum-pct" id="projSumPct_${p}" style="color:${pct>=0?'var(--green)':'var(--red)'}">${fmtPct(pct)}</div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+
+  // Table
+  const tableHTML = `
+    <div class="table-wrap">
+      <table id="projTable">
+        <thead>
+          <tr>
+            <th>Item Code</th>
+            <th>Description</th>
+            <th>Category</th>
+            <th style="text-align:right">Base Total (${baseYear})</th>
+            ${Array.from({length:12},(_,i)=>`<th style="text-align:right">P${i+1} Base</th><th style="text-align:right">P${i+1} Proj</th>`).join('')}
+            <th style="text-align:right">Proj Total</th>
+          </tr>
+        </thead>
+        <tbody id="projTbody">
+          ${renderProjRows(baseItems)}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  document.getElementById('projectionsContent').innerHTML = periodInputsHTML + tableHTML;
+}
+
+function renderProjRows(baseItems) {
+  return (baseItems || getFilteredItems().map(item => {
+    const bi = getItemForYear(parseInt(document.getElementById('projBaseYear').value), item.itemCode);
+    return { ...item, periods: bi ? bi.periods : [0,0,0,0,0,0,0,0,0,0,0,0] };
+  })).map(item => {
+    const cat = getEffectiveCat(item.itemCode, item);
+    const baseTotal = item.periods.reduce((s,v)=>s+v, 0);
+    const projPeriods = item.periods.map((v, i) => {
+      const pct = state.projTargets[i+1] || 0;
+      return Math.round(v * (1 + pct/100));
+    });
+    const projTotal = projPeriods.reduce((s,v)=>s+v, 0);
+    if (baseTotal === 0 && projTotal === 0) return '';
+    return `<tr>
+      <td class="td-code">${item.itemCode}</td>
+      <td class="td-desc" title="${item.description}">${item.description||'—'}</td>
+      <td>${catBadge(cat||'Other', item.itemCode, item)}</td>
+      <td class="td-num">${fmt(baseTotal)}</td>
+      ${item.periods.map((v,i)=>{
+        const proj = projPeriods[i];
+        const pct = state.projTargets[i+1]||0;
+        return `<td class="td-num ${v===0?'zero':''}">${fmt(v)}</td><td class="td-num" style="color:${pct>=0?'var(--green)':'var(--red)'}">${fmt(proj)}</td>`;
+      }).join('')}
+      <td class="td-num" style="color:var(--accent);font-weight:600;">${fmt(projTotal)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function updateProjTarget(period, val) {
+  state.projTargets[period] = parseFloat(val) || 0;
+  saveProjTargets();
+  recalcProjections();
+}
+
+function recalcProjections() {
+  const baseYear = parseInt(document.getElementById('projBaseYear').value);
+  if (!state.years[baseYear]) return;
+  const items = getFilteredItems();
+  const baseItems = items.map(item => {
+    const bi = getItemForYear(baseYear, item.itemCode);
+    return { ...item, periods: bi ? bi.periods : [0,0,0,0,0,0,0,0,0,0,0,0] };
+  });
+
+  // Update summary cards
+  for (let p = 1; p <= 12; p++) {
+    const pct = state.projTargets[p]||0;
+    const baseTotal = baseItems.reduce((s,it)=>s+it.periods[p-1],0);
+    const projTotal = Math.round(baseTotal * (1+pct/100));
+    const t = document.getElementById(`projSumTarget_${p}`);
+    const pp = document.getElementById(`projSumPct_${p}`);
+    if (t) t.textContent = projTotal.toLocaleString();
+    if (pp) { pp.textContent = fmtPct(pct); pp.style.color = pct>=0?'var(--green)':'var(--red)'; }
+  }
+
+  // Update table
+  const tbody = document.getElementById('projTbody');
+  if (tbody) tbody.innerHTML = renderProjRows(baseItems);
+}
+
+// ═══════════════════════════════════════════════
+// ITEM DETAIL TAB
+// ═══════════════════════════════════════════════
+let itemDetailChart = null;
+
+function runItemDetail() {
+  const code = document.getElementById('itemDetailSelect').value;
+  if (!code) return;
+  const years = getSortedYears();
+  if (!years.length) return;
+
+  // Find item meta
+  let itemMeta = null;
+  years.forEach(y => {
+    const f = getItemForYear(y, code);
+    if (f && !itemMeta) itemMeta = f;
+  });
+  if (!itemMeta) return;
+
+  const cat = getEffectiveCat(code, itemMeta);
+
+  // Year data
+  const yearData = years.map(y => {
+    const item = getItemForYear(y, code);
+    return { year: y, periods: item ? item.periods : Array(12).fill(0), total: item ? item.periods.reduce((a,b)=>a+b,0) : 0 };
+  });
+
+  // Period table
+  const periodTableHTML = `
+    <div class="table-wrap" style="margin-bottom:20px;">
+      <table>
+        <thead>
+          <tr>
+            <th>Year</th>
+            ${Array.from({length:12},(_,i)=>`<th style="text-align:right">P${i+1}</th>`).join('')}
+            <th style="text-align:right">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${yearData.map((yd, yi) => {
+            const prevYd = yi > 0 ? yearData[yi-1] : null;
+            return `<tr>
+              <td class="y-label mono" style="color:var(--accent);font-weight:600;">${yd.year}</td>
+              ${yd.periods.map((v,pi) => {
+                const prev = prevYd ? prevYd.periods[pi] : null;
+                const pct = prev !== null ? calcPct(prev, v) : null;
+                const sub = pct !== null && pct !== 0 ? `<div style="font-size:9px;${pct>0?'color:var(--green)':'color:var(--red)'}">${fmtPct(pct)}</div>` : '';
+                return `<td class="td-num ${v===0?'zero':''}">${fmt(v)}${sub}</td>`;
+              }).join('')}
+              <td class="td-num" style="color:var(--accent);font-weight:600;">${fmt(yd.total)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  document.getElementById('itemDetailContent').innerHTML = `
+    <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:var(--accent);">${code}</div>
+        <div style="color:var(--text2);font-size:13px;margin-top:2px;">${itemMeta.description||''}</div>
+        <div style="margin-top:6px;display:flex;gap:8px;align-items:center;">
+          ${catBadge(cat||'Other', code, itemMeta)}
+          <span class="text-muted mono" style="font-size:10px;">Prod Line: ${itemMeta.prodLine||'—'}</span>
+        </div>
+      </div>
+    </div>
+    ${periodTableHTML}
+    <div class="chart-grid">
+      <div class="chart-card full">
+        <div class="chart-title">Year Over Year — All Periods</div>
+        <div class="chart-container tall"><canvas id="itemDetailChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Annual Totals</div>
+        <div class="chart-container"><canvas id="itemTotalChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Period Pattern (latest year)</div>
+        <div class="chart-container"><canvas id="itemPeriodChart"></canvas></div>
+      </div>
+    </div>
+  `;
+
+  if (itemDetailChart) { itemDetailChart.destroy(); itemDetailChart = null; }
+
+  const colors = ['#c8a84b','#5b9bd5','#4caf7d','#9b7fd4','#e0885c','#4cb8b8','#e05c5c'];
+
+  // Multi-year period chart
+  const ctx1 = document.getElementById('itemDetailChart').getContext('2d');
+  itemDetailChart = new Chart(ctx1, {
+    type: 'line',
+    data: {
+      labels: Array.from({length:12},(_,i)=>'P'+(i+1)),
+      datasets: yearData.map((yd, i) => ({
+        label: String(yd.year),
+        data: yd.periods,
+        borderColor: colors[i%colors.length],
+        backgroundColor: colors[i%colors.length]+'22',
+        borderWidth: 2,
+        pointRadius: 3,
+        fill: false,
+        tension: 0.3,
+      }))
+    },
+    options: chartOpts('Quantity Sold', false)
+  });
+
+  // Total bar
+  const ctx2 = document.getElementById('itemTotalChart').getContext('2d');
+  new Chart(ctx2, {
+    type: 'bar',
+    data: {
+      labels: yearData.map(yd=>String(yd.year)),
+      datasets: [{ label: 'Annual Total', data: yearData.map(yd=>yd.total), backgroundColor: '#c8a84b99', borderColor: '#c8a84b', borderWidth: 1 }]
+    },
+    options: chartOpts('Total Sold', false)
+  });
+
+  // Latest year period pattern
+  const latest = yearData[yearData.length-1];
+  const ctx3 = document.getElementById('itemPeriodChart').getContext('2d');
+  new Chart(ctx3, {
+    type: 'bar',
+    data: {
+      labels: Array.from({length:12},(_,i)=>'P'+(i+1)),
+      datasets: [{ label: String(latest.year), data: latest.periods, backgroundColor: '#5b9bd599', borderColor: '#5b9bd5', borderWidth: 1 }]
+    },
+    options: chartOpts('Qty Sold', false)
+  });
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+loadState();
+updateUI();
+updateCustomLabelsList();
+
+// Add input listener for new label enter key
+document.getElementById('newLabelInput').addEventListener('keydown', e => { if (e.key === 'Enter') addCustomLabel(); });
+document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') refreshCurrentPanel(); });
+</script>
+</body>
+</html>

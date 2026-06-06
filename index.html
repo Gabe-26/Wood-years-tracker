@@ -537,6 +537,15 @@
         </div>
         <div class="custom-labels-list" id="customLabelsList"></div>
       </div>
+      <div class="divider"></div>
+      <div class="sidebar-label">Excluded Codes</div>
+      <div class="label-mgmt">
+        <div class="label-input-row">
+          <input type="text" id="newExcludeInput" placeholder="Item code..." style="text-transform:uppercase;">
+          <button class="btn-sm" onclick="addExcludedCode()">+</button>
+        </div>
+        <div class="custom-labels-list" id="excludedCodesList"></div>
+      </div>
     </div>
 
   </div>
@@ -691,6 +700,7 @@ const state = {
   years: {},          // { 2025: { items: [...] } }
   itemLabels: {},     // { itemCode: 'Gate' }
   customLabels: [],   // ['Special', 'Seasonal']
+  excludedCodes: [],  // ['WOK6', 'SOMESKU']
   projTargets: {},    // { period: pct }  e.g. {1:5, 2:3, ...}
   sortCol: null,
   sortDir: 'asc',
@@ -709,7 +719,12 @@ function loadState() {
     if (targets) state.projTargets = JSON.parse(targets);
     const years = localStorage.getItem('aii_wood_years');
     if (years) state.years = JSON.parse(years);
+    const excluded = localStorage.getItem('aii_wood_excluded_codes');
+    if (excluded) state.excludedCodes = JSON.parse(excluded);
   } catch(e) {}
+}
+function saveExcludedCodes() {
+  localStorage.setItem('aii_wood_excluded_codes', JSON.stringify(state.excludedCodes));
 }
 function saveYears() {
   try {
@@ -1087,7 +1102,9 @@ function getAllUniqueItems() {
       if (!map.has(item.itemCode)) map.set(item.itemCode, item);
     });
   });
-  return [...map.values()].sort((a,b) => a.itemCode.localeCompare(b.itemCode));
+  return [...map.values()]
+    .filter(item => !state.excludedCodes.includes(item.itemCode))
+    .sort((a,b) => a.itemCode.localeCompare(b.itemCode));
 }
 
 function getEffectiveCat(code, item) {
@@ -1141,6 +1158,38 @@ function updateCustomLabelsList() {
   el.innerHTML = state.customLabels.map(l =>
     `<div class="custom-label-tag" onclick="removeCustomLabel('${l}')">
       <span>${l}</span><span class="del-label">×</span>
+    </div>`
+  ).join('');
+}
+
+function addExcludedCode() {
+  const input = document.getElementById('newExcludeInput');
+  const val = input.value.trim().toUpperCase();
+  if (!val || state.excludedCodes.includes(val)) return;
+  state.excludedCodes.push(val);
+  saveExcludedCodes();
+  input.value = '';
+  updateExcludedCodesList();
+  updateCatLegend();
+  updateItemDetailSelect();
+  refreshCurrentPanel();
+}
+
+function removeExcludedCode(code) {
+  state.excludedCodes = state.excludedCodes.filter(c => c !== code);
+  saveExcludedCodes();
+  updateExcludedCodesList();
+  updateCatLegend();
+  updateItemDetailSelect();
+  refreshCurrentPanel();
+}
+
+function updateExcludedCodesList() {
+  const el = document.getElementById('excludedCodesList');
+  if (!el) return;
+  el.innerHTML = state.excludedCodes.map(c =>
+    `<div class="custom-label-tag" onclick="removeExcludedCode('${c}')">
+      <span>${c}</span><span class="del-label">×</span>
     </div>`
   ).join('');
 }
@@ -1835,9 +1884,11 @@ function runItemDetail() {
 loadState();
 updateUI();
 updateCustomLabelsList();
+updateExcludedCodesList();
 
 // Add input listener for new label enter key
 document.getElementById('newLabelInput').addEventListener('keydown', e => { if (e.key === 'Enter') addCustomLabel(); });
+document.getElementById('newExcludeInput').addEventListener('keydown', e => { if (e.key === 'Enter') addExcludedCode(); });
 document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') refreshCurrentPanel(); });
 </script>
 </body>

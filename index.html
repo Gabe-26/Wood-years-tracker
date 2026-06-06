@@ -665,9 +665,13 @@
     ═══════════════════════════════════ -->
     <div class="panel" id="panel-items">
       <div class="toolbar">
-        <div class="toolbar-group">
+        <div class="toolbar-group" style="position:relative;">
           <span class="toolbar-label">Item</span>
-          <select id="itemDetailSelect" style="width:280px;"></select>
+          <div style="position:relative;">
+            <input type="text" id="itemDetailSearch" placeholder="Type code or description..." style="width:300px;" autocomplete="off">
+            <div id="itemDetailSuggestions" style="display:none;position:absolute;top:100%;left:0;width:420px;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;z-index:500;max-height:260px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5);margin-top:2px;"></div>
+          </div>
+          <input type="hidden" id="itemDetailSelect">
         </div>
         <div class="flex-grow"></div>
         <button class="btn-sm accent" onclick="runItemDetail()">LOAD</button>
@@ -1086,12 +1090,88 @@ function updateProdLineFilter() {
     [...prodLines].sort().map(pl => `<option value="${pl}">${pl}</option>`).join('');
 }
 
+// Typeahead data store
+let _itemDetailAll = [];
+
 function updateItemDetailSelect() {
-  const allItems = getAllUniqueItems();
-  const el = document.getElementById('itemDetailSelect');
-  el.innerHTML = allItems.map(i =>
-    `<option value="${i.itemCode}">${i.itemCode}${i.description?' — '+i.description.slice(0,50):''}</option>`
-  ).join('');
+  _itemDetailAll = getAllUniqueItems();
+}
+
+function initItemDetailTypeahead() {
+  const input = document.getElementById('itemDetailSearch');
+  const suggestions = document.getElementById('itemDetailSuggestions');
+  const hidden = document.getElementById('itemDetailSelect');
+  if (!input) return;
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    if (!q) { suggestions.style.display = 'none'; return; }
+    const matches = _itemDetailAll.filter(i =>
+      i.itemCode.toLowerCase().includes(q) ||
+      (i.description && i.description.toLowerCase().includes(q))
+    ).slice(0, 40);
+
+    if (!matches.length) { suggestions.style.display = 'none'; return; }
+
+    suggestions.innerHTML = matches.map(i => {
+      const code = i.itemCode;
+      const desc = i.description ? ' — ' + i.description.slice(0, 55) : '';
+      return `<div class="item-suggestion" data-code="${code}" style="
+        padding:7px 12px;cursor:pointer;font-size:11px;font-family:'IBM Plex Mono',monospace;
+        border-bottom:1px solid var(--border);transition:background 0.1s;
+        display:flex;gap:8px;align-items:baseline;
+      ">
+        <span style="color:var(--accent);font-weight:600;">${code}</span>
+        <span style="color:var(--text3);font-size:10px;">${desc}</span>
+      </div>`;
+    }).join('');
+
+    suggestions.style.display = 'block';
+
+    suggestions.querySelectorAll('.item-suggestion').forEach(el => {
+      el.addEventListener('mouseenter', () => el.style.background = 'var(--surface3)');
+      el.addEventListener('mouseleave', () => el.style.background = '');
+      el.addEventListener('mousedown', e => {
+        e.preventDefault();
+        const code = el.dataset.code;
+        hidden.value = code;
+        const item = _itemDetailAll.find(i => i.itemCode === code);
+        input.value = code + (item && item.description ? ' — ' + item.description.slice(0,55) : '');
+        suggestions.style.display = 'none';
+        runItemDetail();
+      });
+    });
+  });
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Escape') suggestions.style.display = 'none';
+    if (e.key === 'Enter') {
+      const first = suggestions.querySelector('.item-suggestion');
+      if (first) first.dispatchEvent(new MouseEvent('mousedown'));
+    }
+    if (e.key === 'ArrowDown') {
+      const items = [...suggestions.querySelectorAll('.item-suggestion')];
+      const focused = suggestions.querySelector('.item-suggestion.focused');
+      const idx = focused ? items.indexOf(focused) : -1;
+      if (focused) focused.classList.remove('focused'), focused.style.background = '';
+      const next = items[idx + 1] || items[0];
+      if (next) { next.classList.add('focused'); next.style.background = 'var(--surface3)'; next.scrollIntoView({block:'nearest'}); }
+    }
+    if (e.key === 'ArrowUp') {
+      const items = [...suggestions.querySelectorAll('.item-suggestion')];
+      const focused = suggestions.querySelector('.item-suggestion.focused');
+      const idx = focused ? items.indexOf(focused) : items.length;
+      if (focused) focused.classList.remove('focused'), focused.style.background = '';
+      const prev = items[idx - 1] || items[items.length - 1];
+      if (prev) { prev.classList.add('focused'); prev.style.background = 'var(--surface3)'; prev.scrollIntoView({block:'nearest'}); }
+    }
+  });
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#itemDetailSuggestions') && e.target.id !== 'itemDetailSearch') {
+      suggestions.style.display = 'none';
+    }
+  });
 }
 
 function getAllUniqueItems() {
@@ -1885,6 +1965,7 @@ loadState();
 updateUI();
 updateCustomLabelsList();
 updateExcludedCodesList();
+initItemDetailTypeahead();
 
 // Add input listener for new label enter key
 document.getElementById('newLabelInput').addEventListener('keydown', e => { if (e.key === 'Enter') addCustomLabel(); });

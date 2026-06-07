@@ -161,10 +161,42 @@
     border: 1px solid transparent;
   }
   .cat-item:hover { background: var(--surface2); }
-  .cat-item.active { border-color: var(--border2); }
+  .cat-item.active { border-color: var(--border2); background: var(--surface2); }
   .cat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
   .cat-name { color: var(--text2); }
   .cat-count { color: var(--text3); font-size: 10px; margin-left: auto; font-family: 'IBM Plex Mono', monospace; }
+
+  /* ── CAT EXPAND LIST ── */
+  .cat-expand-list {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    margin: 4px 0 2px 0;
+    max-height: 280px;
+    overflow-y: auto;
+    grid-column: 1 / -1;
+  }
+  .cat-expand-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+    font-size: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .cat-expand-row:last-child { border-bottom: none; }
+  .cat-expand-row:hover { background: var(--surface3); }
+  .cat-expand-code { color: var(--accent); font-weight: 600; min-width: 70px; flex-shrink: 0; }
+  .cat-expand-desc { color: var(--text3); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'IBM Plex Sans', sans-serif; font-size: 10px; }
+  .cat-expand-actions { display: flex; gap: 4px; flex-shrink: 0; }
+  .cat-expand-btn {
+    cursor: pointer; color: var(--text3); font-size: 11px;
+    padding: 1px 4px; border-radius: 2px; border: 1px solid transparent;
+    transition: all 0.15s; line-height: 1.4;
+  }
+  .cat-expand-btn:hover { background: var(--surface3); border-color: var(--border2); color: var(--text); }
+  .cat-expand-exclude:hover { color: var(--red) !important; border-color: var(--red) !important; }
 
   /* ── CUSTOM LABEL ── */
   .label-mgmt { display: flex; flex-direction: column; gap: 6px; }
@@ -524,29 +556,7 @@
       </div>
     </div>
 
-    <!-- CATEGORIES -->
-    <div class="sidebar-section" style="flex:1;overflow-y:auto;">
-      <div class="sidebar-label">Categories</div>
-      <div class="cat-legend" id="catLegend"></div>
-      <div class="divider"></div>
-      <div class="sidebar-label">Custom Labels</div>
-      <div class="label-mgmt">
-        <div class="label-input-row">
-          <input type="text" id="newLabelInput" placeholder="Label name...">
-          <button class="btn-sm" onclick="addCustomLabel()">+</button>
-        </div>
-        <div class="custom-labels-list" id="customLabelsList"></div>
-      </div>
-      <div class="divider"></div>
-      <div class="sidebar-label">Excluded Codes</div>
-      <div class="label-mgmt">
-        <div class="label-input-row">
-          <input type="text" id="newExcludeInput" placeholder="Item code..." style="text-transform:uppercase;">
-          <button class="btn-sm" onclick="addExcludedCode()">+</button>
-        </div>
-        <div class="custom-labels-list" id="excludedCodesList"></div>
-      </div>
-    </div>
+
 
   </div>
 
@@ -559,6 +569,7 @@
       <div class="tab" data-tab="trends">TRENDS</div>
       <div class="tab" data-tab="projections">PROJECTIONS</div>
       <div class="tab" data-tab="items">ITEM DETAIL</div>
+      <div class="tab" data-tab="manage">MANAGE</div>
     </div>
 
     <!-- ═══════════════════════════════════
@@ -690,6 +701,48 @@
             <div class="empty-title">Select an item</div>
             <div class="empty-sub">Choose any item code to see its full history across all loaded years, with period breakdown and year-over-year chart.</div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════
+         MANAGE TAB
+    ═══════════════════════════════════ -->
+    <div class="panel" id="panel-manage">
+      <div class="panel-scroll">
+        <div style="padding:20px;max-width:900px;">
+
+          <!-- CATEGORIES -->
+          <div style="margin-bottom:28px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:12px;">Categories</div>
+            <div id="catLegend" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:8px;align-items:start;"></div>
+          </div>
+
+          <div style="height:1px;background:var(--border);margin-bottom:24px;"></div>
+
+          <!-- CUSTOM LABELS -->
+          <div style="margin-bottom:24px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:10px;">Custom Category Labels</div>
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+              <input type="text" id="newLabelInput" placeholder="New label name..." style="width:200px;">
+              <button class="btn-sm accent" onclick="addCustomLabel()">+ Add Label</button>
+            </div>
+            <div class="custom-labels-list" id="customLabelsList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+          </div>
+
+          <div style="height:1px;background:var(--border);margin-bottom:24px;"></div>
+
+          <!-- EXCLUDED CODES -->
+          <div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:10px;">Excluded Item Codes</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">These codes are hidden from all tabs — use for items not manufactured in-house.</div>
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+              <input type="text" id="newExcludeInput" placeholder="Item code..." style="width:200px;text-transform:uppercase;">
+              <button class="btn-sm accent" onclick="addExcludedCode()">+ Exclude</button>
+            </div>
+            <div class="custom-labels-list" id="excludedCodesList" style="display:flex;flex-wrap:wrap;gap:6px;max-height:300px;overflow-y:auto;"></div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -1056,25 +1109,53 @@ function getAllCategories() {
   return [...cats];
 }
 
+let _expandedCat = null;
+
 function updateCatLegend() {
   const el = document.getElementById('catLegend');
-  const years = getSortedYears();
   const allItems = getAllUniqueItems();
   const counts = {};
+  const catItems = {};
   allItems.forEach(item => {
     const cat = getEffectiveCat(item.itemCode, item);
-    if (cat) counts[cat] = (counts[cat]||0)+1;
+    if (cat) {
+      counts[cat] = (counts[cat]||0)+1;
+      if (!catItems[cat]) catItems[cat] = [];
+      catItems[cat].push(item);
+    }
   });
 
   const cats = getAllCategories();
   el.innerHTML = cats.map(cat => {
     const color = getCatColor(cat);
     const count = counts[cat] || 0;
-    const isActive = state.activeFilter.cat === cat;
-    return `<div class="cat-item ${isActive?'active':''}" onclick="toggleCatFilter('${cat}')">
-      <div class="cat-dot" style="background:${color}"></div>
-      <span class="cat-name">${cat}</span>
-      <span class="cat-count">${count}</span>
+    const isExpanded = _expandedCat === cat;
+    const items = catItems[cat] || [];
+
+    const itemRows = isExpanded ? `
+      <div class="cat-expand-list">
+        ${items.map(item => {
+          const code = item.itemCode;
+          const desc = item.description ? item.description.slice(0,34) : '';
+          return `<div class="cat-expand-row">
+            <span class="cat-expand-code">${code}</span>
+            <span class="cat-expand-desc" title="${item.description||''}">${desc}</span>
+            <div class="cat-expand-actions">
+              <span class="cat-expand-btn" title="Reassign category" onclick="event.stopPropagation();showCatDropdown('${code}',{itemCode:'${code}',description:'',prodLine:'${item.prodLine||''}'},event.clientX,event.clientY)">⇄</span>
+              <span class="cat-expand-btn cat-expand-exclude" title="Exclude this code" onclick="event.stopPropagation();excludeFromLegend('${code}')">✕</span>
+            </div>
+          </div>`;
+        }).join('')}
+        ${items.length === 0 ? '<div style="color:var(--text3);font-size:10px;padding:4px 6px;">No items</div>' : ''}
+      </div>` : '';
+
+    return `<div style="${isExpanded?'grid-column:1/-1;':''}" >
+      <div class="cat-item ${isExpanded?'active':''}" onclick="toggleCatExpand('${cat}')">
+        <div class="cat-dot" style="background:${color}"></div>
+        <span class="cat-name">${cat}</span>
+        <span class="cat-count">${count}</span>
+        <span style="color:var(--text3);font-size:10px;margin-left:2px;">${isExpanded?'▲':'▼'}</span>
+      </div>${itemRows}
     </div>`;
   }).join('');
 
@@ -1082,6 +1163,22 @@ function updateCatLegend() {
   const filterEl = document.getElementById('filterCat');
   filterEl.innerHTML = '<option value="">All Categories</option>' +
     cats.map(c => `<option value="${c}"${state.activeFilter.cat===c?' selected':''}>${c}</option>`).join('');
+}
+
+function toggleCatExpand(cat) {
+  _expandedCat = _expandedCat === cat ? null : cat;
+  updateCatLegend();
+}
+
+function excludeFromLegend(code) {
+  if (!state.excludedCodes.includes(code)) {
+    state.excludedCodes.push(code);
+    saveExcludedCodes();
+    updateExcludedCodesList();
+  }
+  updateCatLegend();
+  updateItemDetailSelect();
+  refreshCurrentPanel();
 }
 
 function toggleCatFilter(cat) {

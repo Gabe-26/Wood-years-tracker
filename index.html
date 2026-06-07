@@ -566,21 +566,28 @@
     ═══════════════════════════════════ -->
     <div class="panel active" id="panel-compare">
 
-      <div class="toolbar">
-        <div class="toolbar-group">
-          <span class="toolbar-label">Base Year</span>
-          <select id="cmpBaseYear" style="width:90px;"></select>
+      <div class="toolbar" style="flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;align-items:center;gap:10px;width:100%;flex-wrap:wrap;">
+          <div class="toolbar-group">
+            <span class="toolbar-label">Base Year</span>
+            <select id="cmpBaseYear" style="width:90px;"></select>
+          </div>
+          <div class="toolbar-group">
+            <span class="toolbar-label">vs Year</span>
+            <select id="cmpVsYear" style="width:90px;"></select>
+          </div>
+          <div class="toolbar-group">
+            <span class="toolbar-label">Period</span>
+            <div class="period-selector" id="cmpPeriodSel"></div>
+          </div>
+          <div class="flex-grow"></div>
+          <button class="btn-sm accent" onclick="runCompare()">COMPARE</button>
         </div>
-        <div class="toolbar-group">
-          <span class="toolbar-label">vs Year</span>
-          <select id="cmpVsYear" style="width:90px;"></select>
+        <div style="display:flex;align-items:center;gap:6px;width:100%;flex-wrap:wrap;padding-top:2px;border-top:1px solid var(--border);">
+          <span class="toolbar-label" style="white-space:nowrap;">Categories</span>
+          <div id="cmpCatFilter" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+          <span style="color:var(--text3);font-size:10px;font-family:'IBM Plex Mono',monospace;margin-left:4px;" id="cmpCatHint">all</span>
         </div>
-        <div class="toolbar-group">
-          <span class="toolbar-label">Period</span>
-          <div class="period-selector" id="cmpPeriodSel"></div>
-        </div>
-        <div class="flex-grow"></div>
-        <button class="btn-sm accent" onclick="runCompare()">COMPARE</button>
       </div>
 
       <div class="stats-bar" id="cmpStats" style="display:none;"></div>
@@ -706,6 +713,7 @@ const state = {
   customLabels: [],   // ['Special', 'Seasonal']
   excludedCodes: [],  // ['WOK6', 'SOMESKU']
   projTargets: {},    // { period: pct }  e.g. {1:5, 2:3, ...}
+  cmpActiveCats: [],  // [] = all; otherwise only selected cats shown
   sortCol: null,
   sortDir: 'asc',
   activeFilter: { cat: '', search: '', prodLine: '' },
@@ -951,6 +959,7 @@ function updateUI() {
   updateYearList(years);
   updateYearSelects(years);
   updateCatLegend();
+  updateCmpCatFilter();
   updateProdLineFilter();
   updateItemDetailSelect();
   updateHeaderMeta(years);
@@ -1088,6 +1097,33 @@ function updateProdLineFilter() {
   const el = document.getElementById('filterProdLine');
   el.innerHTML = '<option value="">All Prod Lines</option>' +
     [...prodLines].sort().map(pl => `<option value="${pl}">${pl}</option>`).join('');
+}
+function updateCmpCatFilter() {
+  const el = document.getElementById('cmpCatFilter');
+  if (!el) return;
+  const cats = getAllCategories();
+  const palMap = {
+    '--cat-fence': '#5b9bd5', '--cat-gate': '#9b7fd4', '--cat-post': '#c8a84b',
+    '--cat-picket': '#4caf7d', '--cat-stock': '#4cb8b8', '--cat-pergola': '#e0885c',
+    '--cat-material': '#999', '--cat-custom': '#e05c5c',
+  };
+  el.innerHTML = cats.map(cat => {
+    const cssVar = getCatColor(cat).replace('var(','').replace(')','');
+    const color = palMap[cssVar] || '#888';
+    const active = state.cmpActiveCats.includes(cat);
+    return `<div class="period-btn ${active ? 'active' : ''}" data-cat="${cat}"
+      style="${active ? `background:${color};border-color:${color};color:#000;` : `border-color:${color}44;color:${color};`}"
+      onclick="toggleCmpCat('${cat}', '${color}')">${cat}</div>`;
+  }).join('');
+  const hint = document.getElementById('cmpCatHint');
+  if (hint) hint.textContent = state.cmpActiveCats.length === 0 ? 'all' : state.cmpActiveCats.join(' + ');
+}
+
+function toggleCmpCat(cat, color) {
+  const idx = state.cmpActiveCats.indexOf(cat);
+  if (idx === -1) state.cmpActiveCats.push(cat);
+  else state.cmpActiveCats.splice(idx, 1);
+  updateCmpCatFilter();
 }
 
 // Typeahead data store
@@ -1412,13 +1448,15 @@ function runCompare() {
   let totalBase = 0, totalVs = 0;
 
   items.forEach(item => {
+    const cat = getEffectiveCat(item.itemCode, item);
+    // Apply compare-tab category filter (multi-select)
+    if (state.cmpActiveCats.length > 0 && !state.cmpActiveCats.includes(cat)) return;
     const baseItem = getItemForYear(baseYear, item.itemCode);
     const vsItem = getItemForYear(vsYear, item.itemCode);
     const baseQty = baseItem ? getPeriodTotal(baseItem, period) : 0;
     const vsQty = vsItem ? getPeriodTotal(vsItem, period) : 0;
     if (baseQty === 0 && vsQty === 0) return;
     const pct = calcPct(baseQty, vsQty);
-    const cat = getEffectiveCat(item.itemCode, item);
     rows.push({ ...item, baseQty, vsQty, pct, cat });
     totalBase += baseQty;
     totalVs += vsQty;

@@ -591,6 +591,15 @@
             <span class="toolbar-label">Period</span>
             <div class="period-selector" id="cmpPeriodSel"></div>
           </div>
+          <div class="toolbar-group">
+            <span class="toolbar-label">Quarter</span>
+            <div class="period-selector" id="cmpQuarterSel">
+              <div class="period-btn" data-q="1" onclick="selectCmpQuarter(1)">Q1</div>
+              <div class="period-btn" data-q="2" onclick="selectCmpQuarter(2)">Q2</div>
+              <div class="period-btn" data-q="3" onclick="selectCmpQuarter(3)">Q3</div>
+              <div class="period-btn" data-q="4" onclick="selectCmpQuarter(4)">Q4</div>
+            </div>
+          </div>
           <div class="flex-grow"></div>
           <button class="btn-sm accent" onclick="runCompare()">COMPARE</button>
         </div>
@@ -767,6 +776,7 @@ const state = {
   excludedCodes: [],  // ['WOK6', 'SOMESKU']
   projTargets: {},    // { period: pct }  e.g. {1:5, 2:3, ...}
   cmpActiveCats: [],  // [] = all; otherwise only selected cats shown
+  cmpQuarter: 0,      // 0 = none selected, 1-4 = Q1-Q4
   sortCol: null,
   sortDir: 'asc',
   activeFilter: { cat: '', search: '', prodLine: '' },
@@ -1075,6 +1085,11 @@ function updatePeriodSelectors() {
       btn.addEventListener('click', () => {
         el.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
+        // Clicking a period clears quarter selection
+        if (id === 'cmpPeriodSel') {
+          state.cmpQuarter = 0;
+          document.querySelectorAll('#cmpQuarterSel .period-btn').forEach(b => b.classList.remove('active'));
+        }
       });
     });
   });
@@ -1530,10 +1545,38 @@ function catBadge(cat, code, item) {
 // ═══════════════════════════════════════════════
 let compareChartInst = null;
 
+const QUARTER_PERIODS = { 1:[1,2,3], 2:[4,5,6], 3:[7,8,9], 4:[10,11,12] };
+
+function getQuarterTotal(item, q) {
+  return QUARTER_PERIODS[q].reduce((s, p) => s + (item.periods[p-1] || 0), 0);
+}
+
+function selectCmpQuarter(q) {
+  // Deselect period buttons, toggle quarter
+  if (state.cmpQuarter === q) {
+    state.cmpQuarter = 0;
+  } else {
+    state.cmpQuarter = q;
+    // Deactivate period selector
+    document.querySelectorAll('#cmpPeriodSel .period-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('#cmpPeriodSel .period-btn[data-p="0"]').classList.add('active');
+  }
+  document.querySelectorAll('#cmpQuarterSel .period-btn').forEach(b => b.classList.remove('active'));
+  if (state.cmpQuarter) document.querySelector(`#cmpQuarterSel .period-btn[data-q="${q}"]`).classList.add('active');
+}
+
 function runCompare() {
   const baseYear = parseInt(document.getElementById('cmpBaseYear').value);
   const vsYear = parseInt(document.getElementById('cmpVsYear').value);
   const period = getActivePeriod('cmpPeriodSel');
+  const quarter = state.cmpQuarter;
+
+  // If period other than ALL is picked, clear quarter selection
+  if (period !== 0 && quarter) {
+    state.cmpQuarter = 0;
+    document.querySelectorAll('#cmpQuarterSel .period-btn').forEach(b => b.classList.remove('active'));
+  }
+  const activeQuarter = period === 0 ? state.cmpQuarter : 0;
 
   if (!state.years[baseYear] || !state.years[vsYear]) {
     document.getElementById('compareContent').innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Missing data</div><div class="empty-sub">Load both years first.</div></div>';
@@ -1546,12 +1589,15 @@ function runCompare() {
 
   items.forEach(item => {
     const cat = getEffectiveCat(item.itemCode, item);
-    // Apply compare-tab category filter (multi-select)
     if (state.cmpActiveCats.length > 0 && !state.cmpActiveCats.includes(cat)) return;
     const baseItem = getItemForYear(baseYear, item.itemCode);
     const vsItem = getItemForYear(vsYear, item.itemCode);
-    const baseQty = baseItem ? getPeriodTotal(baseItem, period) : 0;
-    const vsQty = vsItem ? getPeriodTotal(vsItem, period) : 0;
+    const baseQty = activeQuarter
+      ? (baseItem ? getQuarterTotal(baseItem, activeQuarter) : 0)
+      : (baseItem ? getPeriodTotal(baseItem, period) : 0);
+    const vsQty = activeQuarter
+      ? (vsItem ? getQuarterTotal(vsItem, activeQuarter) : 0)
+      : (vsItem ? getPeriodTotal(vsItem, period) : 0);
     if (baseQty === 0 && vsQty === 0) return;
     const pct = calcPct(baseQty, vsQty);
     rows.push({ ...item, baseQty, vsQty, pct, cat });
@@ -1570,16 +1616,17 @@ function runCompare() {
   }
 
   const totalPct = calcPct(totalBase, totalVs);
+  const periodLabel = activeQuarter ? `Q${activeQuarter} (P${QUARTER_PERIODS[activeQuarter].join('+P')})` : (period === 0 ? 'Full Year' : `Period ${period}`);
   const statsEl = document.getElementById('cmpStats');
   statsEl.style.display = 'flex';
   statsEl.innerHTML = `
     <div class="stat-card"><div class="stat-label">Items Compared</div><div class="stat-value">${rows.length}</div><div class="stat-sub">filtered</div></div>
-    <div class="stat-card"><div class="stat-label">${baseYear} Total</div><div class="stat-value">${totalBase.toLocaleString()}</div><div class="stat-sub">${period===0?'Full Year':'Period '+period}</div></div>
-    <div class="stat-card"><div class="stat-label">${vsYear} Total</div><div class="stat-value">${totalVs.toLocaleString()}</div><div class="stat-sub">${period===0?'Full Year':'Period '+period}</div></div>
+    <div class="stat-card"><div class="stat-label">${baseYear} Total</div><div class="stat-value">${totalBase.toLocaleString()}</div><div class="stat-sub">${periodLabel}</div></div>
+    <div class="stat-card"><div class="stat-label">${vsYear} Total</div><div class="stat-value">${totalVs.toLocaleString()}</div><div class="stat-sub">${periodLabel}</div></div>
     <div class="stat-card"><div class="stat-label">Change</div><div class="stat-value" style="color:${totalPct>=0?'var(--green)':'var(--red)'}">${fmtPct(totalPct)}</div><div class="stat-sub">${(totalVs-totalBase).toLocaleString()}</div></div>
   `;
 
-  const colLabel = period === 0 ? 'Full Year' : `Period ${period}`;
+  const colLabel = periodLabel;
   const thStyle = (col) => `onclick="sortTable('${col}')" class="${state.sortCol===col?(state.sortDir==='asc'?'sorted-asc':'sorted-desc'):''}"`;
 
   document.getElementById('compareContent').innerHTML = `

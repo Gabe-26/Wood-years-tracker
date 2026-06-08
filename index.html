@@ -499,9 +499,80 @@
   .proj-sum-base { font-size: 11px; color: var(--text2); font-family: 'IBM Plex Mono', monospace; }
   .proj-sum-target { font-size: 14px; font-weight: 600; color: var(--accent); font-family: 'IBM Plex Mono', monospace; }
   .proj-sum-pct { font-size: 10px; margin-top: 2px; font-family: 'IBM Plex Mono', monospace; }
+
+  /* ── PRINT STYLES ── */
+  @media print {
+    body * { visibility: hidden; }
+    #printArea, #printArea * { visibility: visible; }
+    #printArea {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: #fff; color: #000; z-index: 99999;
+    }
+  }
+  /* ── PRINT AREA ── */
+  #printArea {
+    display: none;
+    font-family: 'IBM Plex Sans', sans-serif;
+    background: #fff;
+    color: #111;
+    padding: 0;
+  }
+  .pdf-page {
+    width: 100%;
+    padding: 28px 32px;
+    page-break-after: always;
+  }
+  .pdf-page:last-child { page-break-after: avoid; }
+  .pdf-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    border-bottom: 2px solid #c8a84b;
+    padding-bottom: 10px;
+    margin-bottom: 16px;
+  }
+  .pdf-logo { font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 700; color: #c8a84b; letter-spacing: 0.05em; }
+  .pdf-title { font-size: 18px; font-weight: 600; margin-top: 2px; color: #111; }
+  .pdf-subtitle { font-size: 11px; color: #666; margin-top: 3px; font-family: 'IBM Plex Mono', monospace; }
+  .pdf-meta { text-align: right; font-size: 10px; color: #888; font-family: 'IBM Plex Mono', monospace; line-height: 1.6; }
+  .pdf-stats {
+    display: flex; gap: 10px; margin-bottom: 16px;
+  }
+  .pdf-stat {
+    flex: 1; border: 1px solid #ddd; border-radius: 4px; padding: 8px 12px;
+    background: #fafafa;
+  }
+  .pdf-stat-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #888; font-family: 'IBM Plex Mono', monospace; margin-bottom: 3px; }
+  .pdf-stat-value { font-size: 18px; font-weight: 700; font-family: 'IBM Plex Mono', monospace; color: #c8a84b; }
+  .pdf-stat-sub { font-size: 10px; color: #888; }
+  .pdf-chart-row { display: flex; gap: 12px; margin-bottom: 16px; }
+  .pdf-chart-box { flex: 1; border: 1px solid #eee; border-radius: 4px; padding: 10px; }
+  .pdf-chart-box img { width: 100%; height: auto; }
+  .pdf-chart-title { font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: #888; font-family: 'IBM Plex Mono', monospace; margin-bottom: 6px; }
+  .pdf-table { width: 100%; border-collapse: collapse; font-size: 9.5px; font-family: 'IBM Plex Mono', monospace; }
+  .pdf-table thead th {
+    background: #1a1a1a; color: #c8a84b; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.07em; font-size: 8.5px;
+    padding: 6px 8px; text-align: left; border: 1px solid #333;
+  }
+  .pdf-table thead th.num { text-align: right; }
+  .pdf-table tbody td { padding: 5px 8px; border: 1px solid #e0e0e0; vertical-align: middle; }
+  .pdf-table tbody tr:nth-child(even) { background: #f7f7f7; }
+  .pdf-table tbody tr:hover { background: #fff8e6; }
+  .pdf-table .td-code { color: #b8920e; font-weight: 700; }
+  .pdf-table .td-desc { color: #444; font-family: 'IBM Plex Sans', sans-serif; }
+  .pdf-table .num { text-align: right; }
+  .pdf-table .pos { color: #2a7a4f; font-weight: 600; }
+  .pdf-table .neg { color: #c0392b; font-weight: 600; }
+  .pdf-table .zero { color: #bbb; }
+  .pdf-section-title { font-size: 11px; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 0.08em; color: #666; margin-bottom: 8px; margin-top: 16px; }
+  .pdf-footer { margin-top: 16px; padding-top: 8px; border-top: 1px solid #ddd; display: flex; justify-content: space-between; font-size: 9px; color: #aaa; font-family: 'IBM Plex Mono', monospace; }
+
 </style>
 </head>
 <body>
+
+<div id="printArea"></div>
 
 <header>
   <div class="logo">AII <span>/</span> WOOD DEPT <span>/</span> SALES ANALYSIS</div>
@@ -602,6 +673,7 @@
           </div>
           <div class="flex-grow"></div>
           <button class="btn-sm accent" onclick="runCompare()">COMPARE</button>
+          <button class="btn-sm" onclick="exportPDF('compare')" title="Export to PDF">⬇ PDF</button>
         </div>
         <div style="display:flex;align-items:center;gap:6px;width:100%;flex-wrap:wrap;padding-top:2px;border-top:1px solid var(--border);">
           <span class="toolbar-label" style="white-space:nowrap;">Categories</span>
@@ -642,6 +714,7 @@
         </div>
         <div class="flex-grow"></div>
         <button class="btn-sm accent" onclick="runTrends()">REFRESH</button>
+        <button class="btn-sm" onclick="exportPDF('trends')" title="Export to PDF">⬇ PDF</button>
       </div>
       <div class="panel-scroll">
         <div id="trendsContent">
@@ -675,6 +748,7 @@
         <div class="flex-grow"></div>
         <button class="btn-sm" onclick="applyDefaultPct()">APPLY TO ALL</button>
         <button class="btn-sm accent" onclick="runProjections()">CALCULATE</button>
+        <button class="btn-sm" onclick="exportPDF('projections')" title="Export to PDF">⬇ PDF</button>
       </div>
       <div class="panel-scroll">
         <div id="projectionsContent">
@@ -702,6 +776,7 @@
         </div>
         <div class="flex-grow"></div>
         <button class="btn-sm accent" onclick="runItemDetail()">LOAD</button>
+        <button class="btn-sm" onclick="exportPDF('items')" title="Export to PDF">⬇ PDF</button>
       </div>
       <div class="panel-scroll">
         <div id="itemDetailContent">
@@ -2153,6 +2228,208 @@ initItemDetailTypeahead();
 document.getElementById('newLabelInput').addEventListener('keydown', e => { if (e.key === 'Enter') addCustomLabel(); });
 document.getElementById('newExcludeInput').addEventListener('keydown', e => { if (e.key === 'Enter') addExcludedCode(); });
 document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') refreshCurrentPanel(); });
+
+// ═══════════════════════════════════════════════
+// PDF EXPORT
+// ═══════════════════════════════════════════════
+function exportPDF(tab) {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'});
+  const printArea = document.getElementById('printArea');
+
+  let titleText = '', subtitleText = '', statsHTML = '', tableHTML = '', chartsHTML = '';
+
+  // ── COMPARE ──
+  if (tab === 'compare') {
+    const baseYear = document.getElementById('cmpBaseYear').value;
+    const vsYear = document.getElementById('cmpVsYear').value;
+    const activePeriodBtn = document.querySelector('#cmpPeriodSel .period-btn.active');
+    const activeQuarterBtn = document.querySelector('#cmpQuarterSel .period-btn.active');
+    const periodLabel = activeQuarterBtn
+      ? `Q${activeQuarterBtn.dataset.q}`
+      : (activePeriodBtn && activePeriodBtn.dataset.p !== '0' ? `Period ${activePeriodBtn.dataset.p}` : 'Full Year');
+    const activeCats = state.cmpActiveCats.length ? state.cmpActiveCats.join(', ') : 'All Categories';
+
+    titleText = `Year-Over-Year Comparison`;
+    subtitleText = `${baseYear} vs ${vsYear}  ·  ${periodLabel}  ·  ${activeCats}`;
+
+    // Stats
+    const statsBar = document.getElementById('cmpStats');
+    if (statsBar && statsBar.style.display !== 'none') {
+      const cards = statsBar.querySelectorAll('.stat-card');
+      statsHTML = [...cards].map(c => {
+        const label = c.querySelector('.stat-label')?.textContent || '';
+        const value = c.querySelector('.stat-value')?.textContent || '';
+        const sub = c.querySelector('.stat-sub')?.textContent || '';
+        const isChange = label === 'Change';
+        const valColor = isChange ? (value.startsWith('+') ? '#2a7a4f' : '#c0392b') : '#c8a84b';
+        return `<div class="pdf-stat">
+          <div class="pdf-stat-label">${label}</div>
+          <div class="pdf-stat-value" style="color:${valColor}">${value}</div>
+          <div class="pdf-stat-sub">${sub}</div>
+        </div>`;
+      }).join('');
+    }
+
+    // Table from current compare results
+    const srcTable = document.querySelector('#compareContent table');
+    if (srcTable) {
+      const headers = [...srcTable.querySelectorAll('thead th')].map(th => {
+        const t = th.textContent.replace(/[↑↓]/g,'').trim();
+        return `<th class="${['2024 Full Year','2025 Full Year','2026 Full Year','Change','Diff'].some(x=>t.includes(x.split(' ').pop()))?'num':''}">${t}</th>`;
+      }).join('');
+      const rows = [...srcTable.querySelectorAll('tbody tr')].map(tr => {
+        const cells = [...tr.querySelectorAll('td')].map((td, i) => {
+          const t = td.textContent.trim();
+          let cls = '';
+          if (i === 0) cls = 'td-code';
+          else if (i === 1) cls = 'td-desc';
+          else if (t.startsWith('+')) cls = 'num pos';
+          else if (t.startsWith('-') && t !== '—') cls = 'num neg';
+          else if (t === '—') cls = 'num zero';
+          else cls = 'num';
+          return `<td class="${cls}">${t}</td>`;
+        }).join('');
+        return `<tr>${cells}</tr>`;
+      }).join('');
+      tableHTML = `<div class="pdf-section-title">Item Detail</div>
+        <table class="pdf-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+    }
+
+    // Charts
+    const canvases = document.querySelectorAll('#panel-compare canvas');
+    if (canvases.length) {
+      chartsHTML = '<div class="pdf-chart-row">' + [...canvases].map(c => {
+        try { return `<div class="pdf-chart-box"><div class="pdf-chart-title">Chart</div><img src="${c.toDataURL('image/png')}"></div>`; } catch(e){ return ''; }
+      }).join('') + '</div>';
+    }
+  }
+
+  // ── TRENDS ──
+  else if (tab === 'trends') {
+    const view = document.getElementById('trendView');
+    const viewLabel = view ? view.options[view.selectedIndex].text : '';
+    const activePeriodBtn = document.querySelector('#trendPeriodSel .period-btn.active');
+    const periodLabel = activePeriodBtn ? (activePeriodBtn.dataset.p === '0' ? 'Full Year' : `Period ${activePeriodBtn.dataset.p}`) : '';
+    titleText = `Sales Trends — ${viewLabel}`;
+    subtitleText = `${getSortedYears().join(', ')}  ·  ${periodLabel}`;
+
+    const canvases = document.querySelectorAll('#panel-trends canvas');
+    if (canvases.length) {
+      chartsHTML = '<div class="pdf-chart-row" style="flex-wrap:wrap;">' + [...canvases].map((c, i) => {
+        const title = c.closest('.chart-card')?.querySelector('.chart-title')?.textContent || `Chart ${i+1}`;
+        try { return `<div class="pdf-chart-box" style="flex:0 0 ${canvases.length===1?'100%':'48%'};"><div class="pdf-chart-title">${title}</div><img src="${c.toDataURL('image/png')}"></div>`; } catch(e){ return ''; }
+      }).join('') + '</div>';
+    }
+  }
+
+  // ── PROJECTIONS ──
+  else if (tab === 'projections') {
+    const baseYear = document.getElementById('projBaseYear').value;
+    const targetYear = document.getElementById('projTargetYear').value;
+    titleText = `Sales Projections`;
+    subtitleText = `Base Year: ${baseYear}  ·  Target Year: ${targetYear}`;
+
+    const srcTable = document.querySelector('#projectionsContent table');
+    if (srcTable) {
+      const headers = [...srcTable.querySelectorAll('thead th')].map(th =>
+        `<th class="num">${th.textContent.trim()}</th>`).join('');
+      const rows = [...srcTable.querySelectorAll('tbody tr')].map(tr => {
+        const cells = [...tr.querySelectorAll('td')].map((td, i) => {
+          const t = td.textContent.trim();
+          let cls = i===0?'td-code':i===1?'td-desc':'num';
+          return `<td class="${cls}">${t}</td>`;
+        }).join('');
+        return `<tr>${cells}</tr>`;
+      }).join('');
+      tableHTML = `<div class="pdf-section-title">Projections by Item</div>
+        <table class="pdf-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+    }
+
+    // Period summary cards
+    const sumCards = document.querySelectorAll('#projectionsContent .proj-sum-card');
+    if (sumCards.length) {
+      statsHTML = [...sumCards].map(c => {
+        const p = c.querySelector('.proj-sum-p')?.textContent || '';
+        const base = c.querySelector('.proj-sum-base')?.textContent || '';
+        const target = c.querySelector('.proj-sum-target')?.textContent || '';
+        const pct = c.querySelector('.proj-sum-pct')?.textContent || '';
+        const isPos = !pct.startsWith('-');
+        return `<div class="pdf-stat">
+          <div class="pdf-stat-label">${p}</div>
+          <div class="pdf-stat-value" style="font-size:13px;">${target}</div>
+          <div class="pdf-stat-sub">Base: ${base} · <span style="color:${isPos?'#2a7a4f':'#c0392b'}">${pct}</span></div>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  // ── ITEM DETAIL ──
+  else if (tab === 'items') {
+    const code = document.getElementById('itemDetailSelect').value;
+    const searchVal = document.getElementById('itemDetailSearch').value;
+    titleText = `Item Detail — ${code || searchVal}`;
+    subtitleText = `All loaded years: ${getSortedYears().join(', ')}`;
+
+    const srcTable = document.querySelector('#itemDetailContent table');
+    if (srcTable) {
+      const headers = [...srcTable.querySelectorAll('thead th')].map(th =>
+        `<th>${th.textContent.trim()}</th>`).join('');
+      const rows = [...srcTable.querySelectorAll('tbody tr')].map(tr => {
+        const cells = [...tr.querySelectorAll('td')].map((td, i) => {
+          const t = td.textContent.trim();
+          const cls = i===0?'td-code':'num';
+          return `<td class="${cls}">${t}</td>`;
+        }).join('');
+        return `<tr>${cells}</tr>`;
+      }).join('');
+      tableHTML = `<div class="pdf-section-title">Period Breakdown</div>
+        <table class="pdf-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+    }
+
+    const canvases = document.querySelectorAll('#panel-items canvas');
+    if (canvases.length) {
+      chartsHTML = '<div class="pdf-chart-row" style="flex-wrap:wrap;">' + [...canvases].map((c, i) => {
+        const title = c.closest('.chart-card')?.querySelector('.chart-title')?.textContent || `Chart ${i+1}`;
+        try { return `<div class="pdf-chart-box" style="flex:0 0 ${i===0?'100%':'48%'};"><div class="pdf-chart-title">${title}</div><img src="${c.toDataURL('image/png')}"></div>`; } catch(e){ return ''; }
+      }).join('') + '</div>';
+    }
+  }
+
+  // Build the print page
+  printArea.style.display = 'block';
+  printArea.innerHTML = `
+    <div class="pdf-page">
+      <div class="pdf-header">
+        <div>
+          <div class="pdf-logo">AII / WOOD DEPT / SALES ANALYSIS</div>
+          <div class="pdf-title">${titleText}</div>
+          <div class="pdf-subtitle">${subtitleText}</div>
+        </div>
+        <div class="pdf-meta">
+          Generated: ${dateStr}<br>
+          AII Wood Tracker
+        </div>
+      </div>
+      ${statsHTML ? `<div class="pdf-stats">${statsHTML}</div>` : ''}
+      ${chartsHTML}
+      ${tableHTML}
+      <div class="pdf-footer">
+        <span>AII Wood Department — Sales Analysis &amp; Projections</span>
+        <span>${dateStr}</span>
+      </div>
+    </div>
+  `;
+
+  setTimeout(() => {
+    window.print();
+    setTimeout(() => {
+      printArea.style.display = 'none';
+      printArea.innerHTML = '';
+    }, 1000);
+  }, 150);
+}
+
 </script>
 </body>
 </html>

@@ -166,6 +166,33 @@
   .cat-name { color: var(--text2); }
   .cat-count { color: var(--text3); font-size: 10px; margin-left: auto; font-family: 'IBM Plex Mono', monospace; }
 
+  /* ── BULK ACTION BAR ── */
+  .bulk-action-bar {
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--surface2);
+    border-top: 1px solid var(--accent);
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 50;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+  }
+  .bulk-count { color: var(--accent); font-weight: 600; }
+  .bulk-clear { color: var(--text3); cursor: pointer; margin-left: 2px; }
+  .bulk-clear:hover { color: var(--red); }
+
+  /* ── CHECKBOXES IN EXPAND ROWS ── */
+  .cat-expand-cb {
+    width: 13px; height: 13px; flex-shrink: 0; cursor: pointer;
+    accent-color: var(--accent);
+  }
+  .cat-expand-row.cb-checked { background: rgba(200,168,75,0.08); }
+
   /* ── CAT EXPAND LIST ── */
   .cat-expand-list {
     background: var(--surface2);
@@ -500,6 +527,63 @@
   .proj-sum-target { font-size: 14px; font-weight: 600; color: var(--accent); font-family: 'IBM Plex Mono', monospace; }
   .proj-sum-pct { font-size: 10px; margin-top: 2px; font-family: 'IBM Plex Mono', monospace; }
 
+  /* ── PROFITABILITY SECTION ── */
+  .profit-section { margin-top: 24px; }
+  .profit-section-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text3);
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .profit-table-wrap { overflow-x: auto; margin-bottom: 16px; }
+  .profit-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .profit-table thead th {
+    background: var(--surface2);
+    color: var(--text3);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-size: 9px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    text-align: right;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  .profit-table thead th:first-child { text-align: left; }
+  .profit-table tbody td {
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--border);
+    text-align: right;
+    white-space: nowrap;
+  }
+  .profit-table tbody td:first-child { text-align: left; }
+  .profit-table .row-rev { color: var(--blue); }
+  .profit-table .row-cogs { color: var(--text2); }
+  .profit-table .row-gp-pos { color: var(--green); font-weight: 600; }
+  .profit-table .row-gp-neg { color: var(--red); font-weight: 600; }
+  .profit-table .row-margin { color: var(--purple); font-size: 10px; }
+  .profit-table .row-year-header td {
+    background: var(--surface2);
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 10px;
+    padding: 5px 8px;
+    border-top: 2px solid var(--border2);
+  }
+  .profit-table .row-year-header td:first-child { text-align: left; }
+
   /* ── PRINT STYLES ── */
   @media print {
     body * { visibility: hidden; }
@@ -640,6 +724,7 @@
       <div class="tab" data-tab="trends">TRENDS</div>
       <div class="tab" data-tab="projections">PROJECTIONS</div>
       <div class="tab" data-tab="items">ITEM DETAIL</div>
+      <div class="tab" data-tab="custom">CUSTOM</div>
       <div class="tab" data-tab="manage">MANAGE</div>
     </div>
 
@@ -651,12 +736,27 @@
       <div class="toolbar" style="flex-wrap:wrap;gap:8px;">
         <div style="display:flex;align-items:center;gap:10px;width:100%;flex-wrap:wrap;">
           <div class="toolbar-group">
+            <span class="toolbar-label">Mode</span>
+            <div class="period-selector">
+              <div class="period-btn active" id="cmpModeSales" onclick="setCmpMode('sales')">SALES</div>
+              <div class="period-btn" id="cmpModeMaterials" onclick="setCmpMode('materials')">MATERIALS</div>
+            </div>
+          </div>
+          <div class="toolbar-group" id="salesYearGroup">
             <span class="toolbar-label">Base Year</span>
             <select id="cmpBaseYear" style="width:90px;"></select>
           </div>
-          <div class="toolbar-group">
+          <div class="toolbar-group" id="salesVsYearGroup">
             <span class="toolbar-label">vs Year</span>
             <select id="cmpVsYear" style="width:90px;"></select>
+          </div>
+          <div class="toolbar-group" id="matYearGroup" style="display:none;">
+            <span class="toolbar-label">Base Year</span>
+            <select id="matBaseYear" style="width:90px;"></select>
+          </div>
+          <div class="toolbar-group" id="matVsYearGroup" style="display:none;">
+            <span class="toolbar-label">vs Year</span>
+            <select id="matVsYear" style="width:90px;"></select>
           </div>
           <div class="toolbar-group">
             <span class="toolbar-label">Period</span>
@@ -672,13 +772,24 @@
             </div>
           </div>
           <div class="flex-grow"></div>
+          <div class="toolbar-group">
+            <span class="toolbar-label">View</span>
+            <div class="period-selector" id="cmpMetricSel">
+              <div class="period-btn active" onclick="setMetric('qty','cmpMetricSel')">QTY</div>
+              <div class="period-btn" onclick="setMetric('dollars','cmpMetricSel')">$</div>
+              <div class="period-btn" onclick="setMetric('cogs','cmpMetricSel')">COGS</div>
+              <div class="period-btn" onclick="setMetric('profit','cmpMetricSel')">GP</div>
+            </div>
+          </div>
           <button class="btn-sm accent" onclick="runCompare()">COMPARE</button>
           <button class="btn-sm" onclick="exportPDF('compare')" title="Export to PDF">⬇ PDF</button>
         </div>
         <div style="display:flex;align-items:center;gap:6px;width:100%;flex-wrap:wrap;padding-top:2px;border-top:1px solid var(--border);">
-          <span class="toolbar-label" style="white-space:nowrap;">Categories</span>
+          <span class="toolbar-label" style="white-space:nowrap;" id="cmpFilterLabel">Categories</span>
           <div id="cmpCatFilter" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
           <span style="color:var(--text3);font-size:10px;font-family:'IBM Plex Mono',monospace;margin-left:4px;" id="cmpCatHint">all</span>
+          <div id="matProdLineFilter" style="display:none;flex-wrap:wrap;gap:4px;"></div>
+          <span style="color:var(--text3);font-size:10px;font-family:'IBM Plex Mono',monospace;margin-left:4px;" id="matProdLineHint"></span>
         </div>
       </div>
 
@@ -711,6 +822,15 @@
             <option value="prodline">By Prod Line</option>
             <option value="top20">Top 20 Items</option>
           </select>
+        </div>
+        <div class="toolbar-group">
+          <span class="toolbar-label">Metric</span>
+          <div class="period-selector" id="trendMetricSel">
+            <div class="period-btn active" onclick="setMetric('qty','trendMetricSel')">QTY</div>
+            <div class="period-btn" onclick="setMetric('dollars','trendMetricSel')">$</div>
+            <div class="period-btn" onclick="setMetric('cogs','trendMetricSel')">COGS</div>
+            <div class="period-btn" onclick="setMetric('profit','trendMetricSel')">GP</div>
+          </div>
         </div>
         <div class="flex-grow"></div>
         <button class="btn-sm accent" onclick="runTrends()">REFRESH</button>
@@ -775,6 +895,12 @@
           <input type="hidden" id="itemDetailSelect">
         </div>
         <div class="flex-grow"></div>
+        <div class="toolbar-group" id="itemDataModeGroup" style="display:none;">
+          <div class="period-selector">
+            <div class="period-btn active" id="itemDataSales" onclick="setItemDataMode('sales')">SALES</div>
+            <div class="period-btn" id="itemDataMaterials" onclick="setItemDataMode('materials')">MATERIALS</div>
+          </div>
+        </div>
         <button class="btn-sm accent" onclick="runItemDetail()">LOAD</button>
         <button class="btn-sm" onclick="exportPDF('items')" title="Export to PDF">⬇ PDF</button>
       </div>
@@ -790,9 +916,113 @@
     </div>
 
     <!-- ═══════════════════════════════════
+         CUSTOM COMPARE TAB
+    ═══════════════════════════════════ -->
+    <div class="panel" id="panel-custom">
+      <div class="toolbar" style="flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;align-items:center;gap:10px;width:100%;flex-wrap:wrap;">
+          <div class="toolbar-group">
+            <span class="toolbar-label">Data</span>
+            <div class="period-selector">
+              <div class="period-btn active" id="customDataSales" onclick="setCustomDataMode('sales')">SALES</div>
+              <div class="period-btn" id="customDataMaterials" onclick="setCustomDataMode('materials')">MATERIALS</div>
+            </div>
+          </div>
+          <div class="toolbar-group">
+            <span class="toolbar-label">Mode</span>
+            <div class="period-selector">
+              <div class="period-btn active" id="customModeItems" onclick="setCustomMode('items')">ITEMS</div>
+              <div class="period-btn" id="customModeCats" onclick="setCustomMode('categories')">CATEGORIES</div>
+            </div>
+          </div>
+          <div class="toolbar-group" id="customSearchGroup" style="position:relative;">
+            <span class="toolbar-label">Add Item</span>
+            <div style="position:relative;">
+              <input type="text" id="customSearch" placeholder="Type code or description..." style="width:260px;" autocomplete="off">
+              <div id="customSuggestions" style="display:none;position:absolute;top:100%;left:0;width:420px;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;z-index:500;max-height:240px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5);margin-top:2px;"></div>
+            </div>
+          </div>
+          <div class="toolbar-group">
+            <span class="toolbar-label">Period</span>
+            <div class="period-selector" id="customPeriodSel"></div>
+          </div>
+          <div class="toolbar-group">
+            <span class="toolbar-label">Quarter</span>
+            <div class="period-selector" id="customQuarterSel">
+              <div class="period-btn" data-q="1" onclick="selectCustomQuarter(1)">Q1</div>
+              <div class="period-btn" data-q="2" onclick="selectCustomQuarter(2)">Q2</div>
+              <div class="period-btn" data-q="3" onclick="selectCustomQuarter(3)">Q3</div>
+              <div class="period-btn" data-q="4" onclick="selectCustomQuarter(4)">Q4</div>
+            </div>
+          </div>
+          <div class="flex-grow"></div>
+          <div class="toolbar-group" id="customMetricGroup">
+            <span class="toolbar-label">Metric</span>
+            <div class="period-selector" id="customMetricSel">
+              <div class="period-btn active" onclick="setMetric('qty','customMetricSel')">QTY</div>
+              <div class="period-btn" onclick="setMetric('dollars','customMetricSel')">$</div>
+              <div class="period-btn" onclick="setMetric('cogs','customMetricSel')">COGS</div>
+              <div class="period-btn" onclick="setMetric('profit','customMetricSel')">GP</div>
+            </div>
+          </div>
+          <button class="btn-sm accent" onclick="runCustomCompare()">COMPARE</button>
+          <button class="btn-sm" onclick="exportPDF('custom')" title="Export to PDF">⬇ PDF</button>
+        </div>
+        <!-- Year checkboxes — sales -->
+        <div id="customSalesYearRow" style="display:flex;align-items:center;gap:8px;width:100%;flex-wrap:wrap;padding-top:2px;border-top:1px solid var(--border);">
+          <span class="toolbar-label">Years</span>
+          <div id="customYearSel" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+        </div>
+        <!-- Year checkboxes — materials -->
+        <div id="customMatYearRow" style="display:none;align-items:center;gap:8px;width:100%;flex-wrap:wrap;padding-top:2px;border-top:1px solid var(--border);">
+          <span class="toolbar-label">Years</span>
+          <div id="customMatYearSel" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+        </div>
+        <!-- Items row (visible in ITEMS + SALES mode) -->
+        <div id="customItemsRow" style="display:flex;align-items:center;gap:8px;width:100%;flex-wrap:wrap;padding-top:2px;border-top:1px solid var(--border);">
+          <span class="toolbar-label">Items</span>
+          <div id="customItemChips" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+          <span id="customItemsHint" style="color:var(--text3);font-size:10px;font-family:'IBM Plex Mono',monospace;">none added</span>
+        </div>
+        <!-- Categories row (visible in CATEGORIES + SALES mode) -->
+        <div id="customCatsRow" style="display:none;align-items:center;gap:8px;width:100%;flex-wrap:wrap;padding-top:2px;border-top:1px solid var(--border);">
+          <span class="toolbar-label">Categories</span>
+          <div id="customCatChips" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+          <span id="customCatsHint" style="color:var(--text3);font-size:10px;font-family:'IBM Plex Mono',monospace;">none selected</span>
+        </div>
+        <!-- Material items row (visible in ITEMS + MATERIALS mode) -->
+        <div id="customMatItemsRow" style="display:none;align-items:center;gap:8px;width:100%;flex-wrap:wrap;padding-top:2px;border-top:1px solid var(--border);">
+          <span class="toolbar-label">Materials</span>
+          <div id="customMatItemChips" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+          <div style="position:relative;display:inline-block;">
+            <input type="text" id="customMatSearch" placeholder="Type material code..." style="width:220px;" autocomplete="off">
+            <div id="customMatSuggestions" style="display:none;position:absolute;top:100%;left:0;width:360px;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;z-index:500;max-height:220px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5);margin-top:2px;"></div>
+          </div>
+          <span id="customMatItemsHint" style="color:var(--text3);font-size:10px;font-family:'IBM Plex Mono',monospace;">none added</span>
+        </div>
+        <!-- Material categories row (visible in CATEGORIES + MATERIALS mode) -->
+        <div id="customMatCatsRow" style="display:none;align-items:center;gap:8px;width:100%;flex-wrap:wrap;padding-top:2px;border-top:1px solid var(--border);">
+          <span class="toolbar-label">Mat. Categories</span>
+          <div id="customMatCatChips" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+          <span id="customMatCatsHint" style="color:var(--text3);font-size:10px;font-family:'IBM Plex Mono',monospace;">none selected (all)</span>
+        </div>
+      </div>
+      <div class="panel-scroll">
+        <div id="customContent">
+          <div class="empty-state">
+            <div class="empty-icon">🎯</div>
+            <div class="empty-title">Build your custom comparison</div>
+            <div class="empty-sub">Add item codes using the search above, select which years to include, then hit COMPARE.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════
          MANAGE TAB
     ═══════════════════════════════════ -->
     <div class="panel" id="panel-manage">
+      <div id="manageBulkBar" class="bulk-action-bar" style="display:none;"></div>
       <div class="panel-scroll">
         <div style="padding:20px;max-width:900px;">
 
@@ -817,7 +1047,7 @@
           <div style="height:1px;background:var(--border);margin-bottom:24px;"></div>
 
           <!-- EXCLUDED CODES -->
-          <div>
+          <div style="margin-bottom:24px;">
             <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:10px;">Excluded Item Codes</div>
             <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">These codes are hidden from all tabs — use for items not manufactured in-house.</div>
             <div style="display:flex;gap:8px;margin-bottom:8px;">
@@ -825,6 +1055,34 @@
               <button class="btn-sm accent" onclick="addExcludedCode()">+ Exclude</button>
             </div>
             <div class="custom-labels-list" id="excludedCodesList" style="display:flex;flex-wrap:wrap;gap:6px;max-height:300px;overflow-y:auto;"></div>
+          </div>
+
+          <div style="height:1px;background:var(--border);margin-bottom:24px;"></div>
+
+          <!-- MATERIAL CATEGORIES -->
+          <div style="margin-bottom:24px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:12px;">Material Categories</div>
+            <div id="matCatLegend" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:8px;align-items:start;"></div>
+          </div>
+
+          <div style="height:1px;background:var(--border);margin-bottom:24px;"></div>
+
+          <!-- ALLOWED MATERIAL CODES -->
+          <div style="margin-bottom:24px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:10px;">Allowed Material Codes</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Only these codes are imported from Issue CSVs. Add new ones here as needed. Default codes cannot be removed.</div>
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+              <input type="text" id="newAllowedMaterialInput" placeholder="Material code..." style="width:200px;text-transform:uppercase;">
+              <button class="btn-sm accent" onclick="addAllowedMaterialCode()">+ Add Code</button>
+            </div>
+            <div style="margin-bottom:6px;">
+              <span style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;">DEFAULT (built-in):</span>
+              <div class="custom-labels-list" id="defaultMaterialCodesList" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;max-height:120px;overflow-y:auto;"></div>
+            </div>
+            <div id="userAllowedCodesWrap" style="display:none;">
+              <span style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;">ADDED BY YOU:</span>
+              <div class="custom-labels-list" id="userAllowedMaterialCodesList" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;"></div>
+            </div>
           </div>
 
         </div>
@@ -852,10 +1110,21 @@ const state = {
   projTargets: {},    // { period: pct }  e.g. {1:5, 2:3, ...}
   cmpActiveCats: [],  // [] = all; otherwise only selected cats shown
   cmpQuarter: 0,      // 0 = none selected, 1-4 = Q1-Q4
+  itemDetailExcludedYears: [],
+  itemDataMode: 'sales',  // 'sales' | 'materials'
+  catSelection: new Set(),
+  metric: 'qty',      // 'qty' | 'dollars' | 'cogs'
   sortCol: null,
   sortDir: 'asc',
   activeFilter: { cat: '', search: '', prodLine: '' },
   activeCatDropdown: null,
+  renamedCats: {},        // { 'Original Name': 'New Name' }
+  cmpMode: 'sales',       // 'sales' | 'materials'
+  issueYears: {},         // { 2025: { items: [...] } }
+  excludedMaterialCodes: [],
+  materialLabels: {},     // { itemCode: 'category' }
+  matActiveCats: [],      // [] = all; selected mat categories filter
+  allowedMaterialCodes: [], // [] = use default list; otherwise user-managed
 };
 
 // Load from localStorage
@@ -871,6 +1140,16 @@ function loadState() {
     if (years) state.years = JSON.parse(years);
     const excluded = localStorage.getItem('aii_wood_excluded_codes');
     if (excluded) state.excludedCodes = JSON.parse(excluded);
+    const renamed = localStorage.getItem('aii_wood_renamed_cats');
+    if (renamed) state.renamedCats = JSON.parse(renamed);
+    const issueYears = localStorage.getItem('aii_wood_issue_years');
+    if (issueYears) state.issueYears = JSON.parse(issueYears);
+    const exclMat = localStorage.getItem('aii_wood_excluded_material_codes');
+    if (exclMat) state.excludedMaterialCodes = JSON.parse(exclMat);
+    const matLabels = localStorage.getItem('aii_wood_material_labels');
+    if (matLabels) state.materialLabels = JSON.parse(matLabels);
+    const allowedMat = localStorage.getItem('aii_wood_allowed_material_codes');
+    if (allowedMat) state.allowedMaterialCodes = JSON.parse(allowedMat);
   } catch(e) {}
 }
 function saveExcludedCodes() {
@@ -888,6 +1167,25 @@ function saveLabels() {
 }
 function saveCustomLabels() {
   localStorage.setItem('aii_wood_custom_labels', JSON.stringify(state.customLabels));
+}
+function saveRenamedCats() {
+  localStorage.setItem('aii_wood_renamed_cats', JSON.stringify(state.renamedCats));
+}
+function saveIssueYears() {
+  try {
+    localStorage.setItem('aii_wood_issue_years', JSON.stringify(state.issueYears));
+  } catch(e) {
+    alert('Could not save material data to localStorage (may be too large): ' + e.message);
+  }
+}
+function saveExcludedMaterialCodes() {
+  localStorage.setItem('aii_wood_excluded_material_codes', JSON.stringify(state.excludedMaterialCodes));
+}
+function saveMaterialLabels() {
+  localStorage.setItem('aii_wood_material_labels', JSON.stringify(state.materialLabels));
+}
+function saveAllowedMaterialCodes() {
+  localStorage.setItem('aii_wood_allowed_material_codes', JSON.stringify(state.allowedMaterialCodes));
 }
 function saveProjTargets() {
   localStorage.setItem('aii_wood_proj_targets', JSON.stringify(state.projTargets));
@@ -973,8 +1271,8 @@ function parseCSV(text, filename) {
   const year = yearMatch ? parseInt(yearMatch[1]) : null;
 
   const lines = text.trim().split('\n');
-  const items = [];
-  const seen = new Set();
+  // Use a map to accumulate quantities across all warehouse rows for the same item
+  const itemMap = new Map(); // itemCode -> { description, prodLine, periods[] }
 
   for (const line of lines) {
     if (!line.trim()) continue;
@@ -987,8 +1285,10 @@ function parseCSV(text, filename) {
     // idx 25 = Description (may be empty for -CUS items)
     // idx 26 = "Prod Line:"
     // idx 27 = prod line value (e.g. "0530")
-    // idx 70 = "Quantity Sold:"
-    // idx 71-82 = 12 period quantities
+    // idx 70 = "Quantity Sold:", 71-82 = 12 period qty
+    // idx 84 = "Dollars Sold:",  85-96 = 12 period dollars
+    // idx 112 = "Cost of Goods Sold:", 113-124 = 12 period COGS
+    // Each item appears once per warehouse -- we SUM across all warehouses.
 
     const itemCode = cols[24] ? cols[24].trim() : '';
 
@@ -1000,39 +1300,64 @@ function parseCSV(text, filename) {
     if (itemCode === 'Quantity Sold:') continue;
     if (itemCode === 'Warehouse:' || itemCode.startsWith('Warehouse')) continue;
 
-    // Skip if already seen
-    if (seen.has(itemCode)) continue;
-    seen.add(itemCode);
-
     // Verify structure: col 26 should be "Prod Line:"
     if (cols[26] && cols[26].trim() !== 'Prod Line:') continue;
 
     const description = cols[25] ? cols[25].trim() : '';
     const prodLine = cols[27] ? cols[27].trim() : '';
 
-    // col 70 should be "Quantity Sold:"
-    let periods = [0,0,0,0,0,0,0,0,0,0,0,0];
+    // Parse qty (cols 71-82)
+    let rowPeriods = [0,0,0,0,0,0,0,0,0,0,0,0];
     if (cols[70] && cols[70].trim() === 'Quantity Sold:') {
       for (let p = 0; p < 12; p++) {
         const raw = cols[71 + p] ? cols[71 + p].trim().replace(/,/g,'') : '0';
-        periods[p] = parseInt(raw) || 0;
+        rowPeriods[p] = parseInt(raw) || 0;
       }
     } else {
-      // Fallback: search for first "Quantity Sold:" occurrence
       for (let i = 60; i < cols.length - 12; i++) {
         if (cols[i] && cols[i].trim() === 'Quantity Sold:') {
           for (let p = 0; p < 12; p++) {
             const raw = cols[i + 1 + p] ? cols[i + 1 + p].trim().replace(/,/g,'') : '0';
-            periods[p] = parseInt(raw) || 0;
+            rowPeriods[p] = parseInt(raw) || 0;
           }
           break;
         }
       }
     }
 
-    items.push({ itemCode, description, prodLine, periods });
+    // Parse dollars sold (cols 85-96)
+    let rowDollars = [0,0,0,0,0,0,0,0,0,0,0,0];
+    if (cols[84] && cols[84].trim() === 'Dollars Sold:') {
+      for (let p = 0; p < 12; p++) {
+        const raw = cols[85 + p] ? cols[85 + p].trim().replace(/,/g,'') : '0';
+        rowDollars[p] = parseFloat(raw) || 0;
+      }
+    }
+
+    // Parse cost of goods sold (cols 113-124)
+    let rowCOGS = [0,0,0,0,0,0,0,0,0,0,0,0];
+    if (cols[112] && cols[112].trim() === 'Cost of Goods Sold:') {
+      for (let p = 0; p < 12; p++) {
+        const raw = cols[113 + p] ? cols[113 + p].trim().replace(/,/g,'') : '0';
+        rowCOGS[p] = parseFloat(raw) || 0;
+      }
+    }
+
+    // Accumulate into map (sum across warehouses)
+    if (itemMap.has(itemCode)) {
+      const existing = itemMap.get(itemCode);
+      for (let p = 0; p < 12; p++) {
+        existing.periods[p] += rowPeriods[p];
+        existing.dollars[p] += rowDollars[p];
+        existing.cogs[p] += rowCOGS[p];
+      }
+      if (!existing.description && description) existing.description = description;
+    } else {
+      itemMap.set(itemCode, { itemCode, description, prodLine, periods: rowPeriods, dollars: rowDollars, cogs: rowCOGS });
+    }
   }
 
+  const items = [...itemMap.values()];
   return { year, items };
 }
 
@@ -1057,6 +1382,72 @@ function parseCSVLine(line) {
 }
 
 // ═══════════════════════════════════════════════
+// ISSUE CSV PARSER (Inventory Issue History Report)
+// ═══════════════════════════════════════════════
+function parseIssueCSV(text, filename) {
+  const yearMatch = filename.match(/(20\d{2})/) || text.match(/Year Equal To:\s*(20\d{2})/);
+  const year = yearMatch ? parseInt(yearMatch[1]) : null;
+
+  const lines = text.trim().split('\n');
+  const itemMap = new Map();
+
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const cols = parseCSVLine(line);
+    if (cols.length < 60) continue;
+
+    // Detect header/footer rows
+    const col0 = cols[0] ? cols[0].trim() : '';
+    if (col0 === 'Item Summary Sorted by Item Code') {
+      // This row may still contain an item at col 22
+    }
+
+    const itemCode = cols[22] ? cols[22].trim() : '';
+    if (!itemCode) continue;
+    if (itemCode === 'Item Code') continue;
+    if (itemCode === 'Report Total:') continue;
+    if (itemCode.startsWith('Total For')) continue;
+
+    // col 24 should be "Prod Line:"
+    if (!cols[24] || cols[24].trim() !== 'Prod Line:') continue;
+
+    const description = cols[23] ? cols[23].trim() : '';
+    const prodLine = cols[25] ? cols[25].trim() : '';
+
+    // Quantity Issued at col 46, values at 47-58
+    let issued = [0,0,0,0,0,0,0,0,0,0,0,0];
+    if (cols[46] && cols[46].trim() === 'Quantity Issued:') {
+      for (let p = 0; p < 12; p++) {
+        const raw = (cols[47 + p] || '').trim().replace(/,/g,'');
+        // Handle trailing minus sign notation e.g. "36-"
+        const isNeg = raw.endsWith('-');
+        const num = parseInt(raw.replace('-','')) || 0;
+        issued[p] = isNeg ? -num : num;
+      }
+    }
+
+    // Accumulate (sum across warehouses like sales parser)
+    if (itemMap.has(itemCode)) {
+      const existing = itemMap.get(itemCode);
+      for (let p = 0; p < 12; p++) existing.issued[p] += issued[p];
+      if (!existing.description && description) existing.description = description;
+    } else {
+      itemMap.set(itemCode, { itemCode, description, prodLine, issued });
+    }
+  }
+
+  return { year, items: [...itemMap.values()] };
+}
+
+function isIssueCSV(text) {
+  return text.includes('Inventory Issue History Report');
+}
+
+function isSalesCSV(text) {
+  return text.includes('Inventory Sales History Report');
+}
+
+// ═══════════════════════════════════════════════
 // FILE UPLOAD
 // ═══════════════════════════════════════════════
 function handleFiles(files) {
@@ -1064,19 +1455,32 @@ function handleFiles(files) {
     if (!file.name.endsWith('.csv')) return;
     const reader = new FileReader();
     reader.onload = e => {
-      const { year, items } = parseCSV(e.target.result, file.name);
-      if (!year) {
-        alert(`Could not detect year from filename: ${file.name}\nPlease include the year in the filename (e.g. 2025_ITEMS_SOLD.csv)`);
-        return;
+      const text = e.target.result;
+      if (isIssueCSV(text)) {
+        // Materials / Issue CSV
+        const { year, items } = parseIssueCSV(text, file.name);
+        if (!year) {
+          alert(`Could not detect year from filename: ${file.name}\nPlease include the year in the filename (e.g. 2025_wood_issue.csv)`);
+          return;
+        }
+        const filtered = items.filter(i => isMaterialCodeAllowed(i.itemCode) && !state.excludedMaterialCodes.includes(i.itemCode));
+        state.issueYears[year] = { items: filtered, filename: file.name };
+        saveIssueYears();
+        updateUI();
+      } else if (isSalesCSV(text)) {
+        // Sales CSV
+        const { year, items } = parseCSV(text, file.name);
+        if (!year) {
+          alert(`Could not detect year from filename: ${file.name}\nPlease include the year in the filename (e.g. 2025_ITEMS_SOLD.csv)`);
+          return;
+        }
+        const filtered = items.filter(item => classifyItem(item) !== null);
+        state.years[year] = { items: filtered, filename: file.name };
+        saveYears();
+        updateUI();
+      } else {
+        alert(`Unrecognized CSV format in: ${file.name}\nExpected an Inventory Sales History Report or Inventory Issue History Report.`);
       }
-      // Filter excluded items
-      const filtered = items.filter(item => {
-        const cat = classifyItem(item);
-        return cat !== null;
-      });
-      state.years[year] = { items: filtered, filename: file.name };
-      saveYears();
-      updateUI();
     };
     reader.readAsText(file);
   });
@@ -1103,6 +1507,12 @@ function updateUI() {
   updateHeaderMeta(years);
   updatePeriodSelectors();
   updateCustomLabelsList();
+  updateCustomYearSel();
+  updateIssueYearSelects();
+  updateExcludedMaterialCodesList();
+  updateMatManageLegend();
+  updateMatCatFilter();
+  updateAllowedMaterialCodesList();
 }
 
 function getSortedYears() {
@@ -1118,15 +1528,51 @@ function updateHeaderMeta(years) {
 
 function updateYearList(years) {
   const el = document.getElementById('yearList');
-  if (!years.length) { el.innerHTML = '<div class="text-muted" style="font-size:11px;">No files loaded</div>'; return; }
-  el.innerHTML = years.map(y => {
+  const issueYears = getSortedIssueYears();
+  const allEmpty = !years.length && !issueYears.length;
+  if (allEmpty) { el.innerHTML = '<div class="text-muted" style="font-size:11px;">No files loaded</div>'; return; }
+  const salesChips = years.map(y => {
     const count = state.years[y].items.length;
     return `<div class="year-chip">
       <span class="y-label">${y}</span>
-      <span class="y-count">${count} items</span>
+      <span class="y-count" title="Sales data">${count} items</span>
       <span class="y-remove" onclick="removeYear(${y})">×</span>
     </div>`;
   }).join('');
+  const matChips = issueYears.map(y => {
+    const count = state.issueYears[y].items.length;
+    return `<div class="year-chip" style="border-color:#4caf7d44;">
+      <span class="y-label" style="color:#4caf7d;">${y}</span>
+      <span class="y-count" title="Materials data" style="color:#4caf7d88;">▣ ${count} mat.</span>
+      <span class="y-remove" onclick="removeIssueYear(${y})">×</span>
+    </div>`;
+  }).join('');
+  el.innerHTML = salesChips + matChips;
+}
+
+function getSortedIssueYears() {
+  return Object.keys(state.issueYears).map(Number).sort();
+}
+
+function removeIssueYear(year) {
+  delete state.issueYears[year];
+  saveIssueYears();
+  updateUI();
+}
+
+function updateIssueYearSelects() {
+  const issueYears = getSortedIssueYears();
+  ['matBaseYear','matVsYear'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cur = el.value;
+    el.innerHTML = issueYears.map(y => `<option value="${y}">${y}</option>`).join('');
+    if (cur && issueYears.includes(parseInt(cur))) el.value = cur;
+    else if (issueYears.length >= 2) {
+      if (id === 'matBaseYear') el.value = issueYears[issueYears.length-2];
+      if (id === 'matVsYear') el.value = issueYears[issueYears.length-1];
+    }
+  });
 }
 
 function removeYear(year) {
@@ -1151,19 +1597,23 @@ function updateYearSelects(years) {
 }
 
 function updatePeriodSelectors() {
-  ['cmpPeriodSel','trendPeriodSel'].forEach(id => {
+  ['cmpPeriodSel','trendPeriodSel','customPeriodSel'].forEach(id => {
     const el = document.getElementById(id);
-    const hasAll = id === 'cmpPeriodSel';
+    if (!el) return;
+    const hasAll = id === 'cmpPeriodSel' || id === 'customPeriodSel';
     el.innerHTML = (hasAll ? '<div class="period-btn active" data-p="0">ALL</div>' : '') +
       Array.from({length:12},(_,i)=>`<div class="period-btn${id==='trendPeriodSel'&&i===0?' active':''}" data-p="${i+1}">P${i+1}</div>`).join('');
     el.querySelectorAll('.period-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         el.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        // Clicking a period clears quarter selection
         if (id === 'cmpPeriodSel') {
           state.cmpQuarter = 0;
           document.querySelectorAll('#cmpQuarterSel .period-btn').forEach(b => b.classList.remove('active'));
+        }
+        if (id === 'customPeriodSel') {
+          customState.quarter = 0;
+          document.querySelectorAll('#customQuarterSel .period-btn').forEach(b => b.classList.remove('active'));
         }
       });
     });
@@ -1191,12 +1641,51 @@ const CAT_COLORS = {
 };
 
 function getCatColor(cat) {
-  return CAT_COLORS[cat] || 'var(--cat-custom)';
+  if (CAT_COLORS[cat]) return CAT_COLORS[cat];
+  // Try looking up by original name
+  const orig = getOriginalCatName(cat);
+  return CAT_COLORS[orig] || 'var(--cat-custom)';
 }
 
 function getAllCategories() {
   const cats = new Set([...BASE_CATEGORIES, ...state.customLabels]);
-  return [...cats];
+  return [...cats].map(c => state.renamedCats[c] || c);
+}
+
+function getOriginalCatName(displayName) {
+  // Given a display name (possibly renamed), find the original key
+  const entry = Object.entries(state.renamedCats).find(([orig, disp]) => disp === displayName);
+  return entry ? entry[0] : displayName;
+}
+
+function renameCategory(oldName, newName) {
+  newName = newName.trim();
+  if (!newName || newName === oldName) return;
+  // Find the original (pre-rename) name
+  const orig = getOriginalCatName(oldName);
+  // Update renamedCats map
+  state.renamedCats[orig] = newName;
+  // Update any itemLabels pointing to the old display name
+  Object.keys(state.itemLabels).forEach(k => {
+    if (state.itemLabels[k] === oldName) state.itemLabels[k] = newName;
+  });
+  // Update customLabels if it was a custom label
+  const ci = state.customLabels.indexOf(oldName);
+  if (ci !== -1) state.customLabels[ci] = newName;
+  // Update CAT_COLORS to carry the color forward
+  if (CAT_COLORS[oldName]) { CAT_COLORS[newName] = CAT_COLORS[oldName]; delete CAT_COLORS[oldName]; }
+  // Update active filter if it was pointing to old name
+  if (state.activeFilter.cat === oldName) state.activeFilter.cat = newName;
+  // Update cmpActiveCats
+  const cai = state.cmpActiveCats.indexOf(oldName);
+  if (cai !== -1) state.cmpActiveCats[cai] = newName;
+  // Update _expandedCat
+  if (_expandedCat === oldName) _expandedCat = newName;
+  saveRenamedCats();
+  saveLabels();
+  saveCustomLabels();
+  updateUI();
+  refreshCurrentPanel();
 }
 
 let _expandedCat = null;
@@ -1227,7 +1716,9 @@ function updateCatLegend() {
         ${items.map(item => {
           const code = item.itemCode;
           const desc = item.description ? item.description.slice(0,34) : '';
-          return `<div class="cat-expand-row">
+          const checked = state.catSelection.has(code);
+          return `<div class="cat-expand-row${checked?' cb-checked':''}" id="expand-row-${code}">
+            <input type="checkbox" class="cat-expand-cb" ${checked?'checked':''} onchange="toggleCatSelection('${code}',this.checked)" onclick="event.stopPropagation()">
             <span class="cat-expand-code">${code}</span>
             <span class="cat-expand-desc" title="${item.description||''}">${desc}</span>
             <div class="cat-expand-actions">
@@ -1244,10 +1735,14 @@ function updateCatLegend() {
         <div class="cat-dot" style="background:${color}"></div>
         <span class="cat-name">${cat}</span>
         <span class="cat-count">${count}</span>
+        <span class="cat-expand-btn" title="Rename category" style="margin-left:4px;font-size:11px;" onclick="event.stopPropagation();startRenameCategory('${cat}', this)">✎</span>
         <span style="color:var(--text3);font-size:10px;margin-left:2px;">${isExpanded?'▲':'▼'}</span>
       </div>${itemRows}
     </div>`;
   }).join('');
+
+  // Bulk action bar
+  updateBulkActionBar();
 
   // Also update filter select
   const filterEl = document.getElementById('filterCat');
@@ -1258,6 +1753,101 @@ function updateCatLegend() {
 function toggleCatExpand(cat) {
   _expandedCat = _expandedCat === cat ? null : cat;
   updateCatLegend();
+}
+
+function startRenameCategory(cat, btn) {
+  // Replace the cat-name span with an inline input
+  const catItem = btn.closest('.cat-item');
+  const nameSpan = catItem.querySelector('.cat-name');
+  const oldName = nameSpan.textContent;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = oldName;
+  input.style.cssText = 'width:140px;font-size:11px;padding:2px 6px;background:var(--surface3);border:1px solid var(--accent);color:var(--text);border-radius:3px;font-family:IBM Plex Mono,monospace;';
+  input.onclick = e => e.stopPropagation();
+  nameSpan.replaceWith(input);
+  input.focus();
+  input.select();
+  const commit = () => {
+    const newName = input.value.trim();
+    if (newName && newName !== oldName) renameCategory(oldName, newName);
+    else updateCatLegend();
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { input.value = oldName; input.blur(); }
+    e.stopPropagation();
+  });
+}
+
+function toggleCatSelection(code, checked) {
+  if (checked) state.catSelection.add(code);
+  else state.catSelection.delete(code);
+  // Update row highlight without full re-render
+  const row = document.getElementById(`expand-row-${code}`);
+  if (row) row.classList.toggle('cb-checked', checked);
+  updateBulkActionBar();
+}
+
+function updateBulkActionBar() {
+  const container = document.getElementById('manageBulkBar');
+  if (!container) return;
+  const n = state.catSelection.size;
+  if (n === 0) {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = 'flex';
+  container.innerHTML = `
+    <span class="bulk-count">${n} item${n>1?'s':''} selected</span>
+    <span class="bulk-clear" onclick="clearCatSelection()">✕ clear</span>
+    <div class="flex-grow"></div>
+    <button class="btn-sm" onclick="bulkExclude()">✕ Exclude all</button>
+    <button class="btn-sm accent" onclick="bulkReassignPrompt(event)">⇄ Reassign all</button>
+  `;
+}
+
+function clearCatSelection() {
+  state.catSelection.clear();
+  updateCatLegend();
+}
+
+function bulkExclude() {
+  state.catSelection.forEach(code => {
+    if (!state.excludedCodes.includes(code)) state.excludedCodes.push(code);
+  });
+  saveExcludedCodes();
+  state.catSelection.clear();
+  updateExcludedCodesList();
+  updateCatLegend();
+  updateItemDetailSelect();
+  refreshCurrentPanel();
+}
+
+function bulkReassignPrompt(e) {
+  e.stopPropagation();
+  const dd = document.getElementById('catDropdown');
+  const cats = getAllCategories();
+  dd.innerHTML = cats.map(c =>
+    `<div class="cat-select-opt" onclick="bulkAssignCat('${c}')">
+      <div class="cat-dot" style="background:${getCatColor(c)};"></div>${c}
+    </div>`
+  ).join('');
+  const btn = e.currentTarget;
+  const rect = btn.getBoundingClientRect();
+  dd.style.display = 'block';
+  dd.style.left = Math.min(rect.left, window.innerWidth - dd.offsetWidth - 8) + 'px';
+  dd.style.top = (rect.bottom + 4) + 'px';
+}
+
+function bulkAssignCat(cat) {
+  state.catSelection.forEach(code => { state.itemLabels[code] = cat; });
+  saveLabels();
+  hideCatDropdown();
+  state.catSelection.clear();
+  updateCatLegend();
+  refreshCurrentPanel();
 }
 
 function excludeFromLegend(code) {
@@ -1412,7 +2002,8 @@ function getAllUniqueItems() {
 
 function getEffectiveCat(code, item) {
   if (state.itemLabels[code]) return state.itemLabels[code];
-  return classifyItem(item);
+  const auto = classifyItem(item);
+  return (auto && state.renamedCats[auto]) ? state.renamedCats[auto] : auto;
 }
 
 function getFilteredItems() {
@@ -1498,6 +2089,88 @@ function updateExcludedCodesList() {
 }
 
 // ═══════════════════════════════════════════════
+// MATERIAL MANAGE LEGEND
+// ═══════════════════════════════════════════════
+let _expandedMatCat = null;
+
+function updateMatManageLegend() {
+  const el = document.getElementById('matCatLegend');
+  if (!el) return;
+
+  // Collect all material items across all loaded issue years
+  const itemMap = new Map();
+  getSortedIssueYears().forEach(y => {
+    state.issueYears[y].items.forEach(item => {
+      if (!itemMap.has(item.itemCode)) itemMap.set(item.itemCode, item);
+    });
+  });
+  const allItems = [...itemMap.values()];
+
+  // Group by material category
+  const cats = getAllMaterialCategories();
+  const catItems = {};
+  cats.forEach(c => { catItems[c] = []; });
+  allItems.forEach(item => {
+    const cat = getMaterialCat(item.itemCode);
+    if (!catItems[cat]) catItems[cat] = [];
+    catItems[cat].push(item);
+  });
+
+  el.innerHTML = cats.map(cat => {
+    const color = getMaterialCatColor(cat);
+    const items = catItems[cat] || [];
+    const isExpanded = _expandedMatCat === cat;
+    const itemRows = isExpanded ? `
+      <div class="cat-expand-list">
+        ${items.map(item => {
+          const code = item.itemCode;
+          const desc = item.description ? item.description.slice(0,34) : '';
+          return `<div class="cat-expand-row">
+            <span class="cat-expand-code" style="color:${color};">${code}</span>
+            <span class="cat-expand-desc" title="${item.description||''}">${desc}</span>
+            <div class="cat-expand-actions">
+              <span class="cat-expand-btn" title="Reassign category"
+                onclick="event.stopPropagation();showMatCatDropdown('${code}',event.clientX,event.clientY)">⇄</span>
+              <span class="cat-expand-btn cat-expand-exclude" title="Exclude this code"
+                onclick="event.stopPropagation();excludeMaterialFromLegend('${code}')">✕</span>
+            </div>
+          </div>`;
+        }).join('')}
+        ${items.length === 0 ? '<div style="color:var(--text3);font-size:10px;padding:4px 6px;">No items</div>' : ''}
+      </div>` : '';
+
+    return `<div style="${isExpanded?'grid-column:1/-1;':''}">
+      <div class="cat-item ${isExpanded?'active':''}" onclick="toggleMatCatExpand('${cat}')">
+        <div class="cat-dot" style="background:${color}"></div>
+        <span class="cat-name">${cat}</span>
+        <span class="cat-count">${items.length}</span>
+        <span style="color:var(--text3);font-size:10px;margin-left:2px;">${isExpanded?'▲':'▼'}</span>
+      </div>${itemRows}
+    </div>`;
+  }).join('');
+}
+
+function toggleMatCatExpand(cat) {
+  _expandedMatCat = _expandedMatCat === cat ? null : cat;
+  updateMatManageLegend();
+}
+
+function excludeMaterialFromLegend(code) {
+  if (!state.excludedMaterialCodes.includes(code)) {
+    state.excludedMaterialCodes.push(code);
+    saveExcludedMaterialCodes();
+    // Remove from loaded issue data
+    getSortedIssueYears().forEach(y => {
+      state.issueYears[y].items = state.issueYears[y].items.filter(i => i.itemCode !== code);
+    });
+    saveIssueYears();
+    updateExcludedMaterialCodesList();
+    updateMatManageLegend();
+    if (state.cmpMode === 'materials') runCompare();
+  }
+}
+
+// ═══════════════════════════════════════════════
 // FILTER EVENTS
 // ═══════════════════════════════════════════════
 document.getElementById('filterCat').addEventListener('change', e => {
@@ -1553,7 +2226,7 @@ function hideCatDropdown() {
 }
 
 document.addEventListener('click', e => {
-  if (!e.target.closest('#catDropdown') && !e.target.closest('.cat-badge')) hideCatDropdown();
+  if (!e.target.closest('#catDropdown') && !e.target.closest('.cat-badge') && !e.target.closest('#manageBulkBar')) hideCatDropdown();
 });
 
 // ═══════════════════════════════════════════════
@@ -1585,6 +2258,45 @@ function refreshCurrentPanel() {
 // HELPERS
 // ═══════════════════════════════════════════════
 function fmt(n) { return n === 0 ? '—' : n.toLocaleString(); }
+function fmtMoney(n) { return n === 0 ? '—' : '$' + Math.round(n).toLocaleString(); }
+function fmtMetric(n) {
+  if (state.metric === 'qty') return fmt(n);
+  return fmtMoney(n);
+}
+function getMetricLabel() {
+  if (state.metric === 'qty') return 'Qty';
+  if (state.metric === 'dollars') return 'Dollars Sold';
+  if (state.metric === 'cogs') return 'COGS';
+  return 'Gross Profit';
+}
+function setMetric(m, selId) {
+  state.metric = m;
+  document.querySelectorAll(`#${selId} .period-btn`).forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+function getItemMetric(item, period) {
+  if (!item) return 0;
+  if (state.metric === 'profit') {
+    const d = item.dollars || Array(12).fill(0);
+    const c = item.cogs || Array(12).fill(0);
+    if (period === 0) return d.reduce((a,b)=>a+b,0) - c.reduce((a,b)=>a+b,0);
+    return (d[period-1]||0) - (c[period-1]||0);
+  }
+  const arr = state.metric === 'dollars' ? item.dollars : state.metric === 'cogs' ? item.cogs : item.periods;
+  if (!arr) return 0;
+  if (period === 0) return arr.reduce((a,b)=>a+b, 0);
+  return arr[period-1] || 0;
+}
+function getQuarterMetric(item, q) {
+  if (state.metric === 'profit') {
+    const d = item.dollars || Array(12).fill(0);
+    const c = item.cogs || Array(12).fill(0);
+    return QUARTER_PERIODS[q].reduce((s,p) => s + (d[p-1]||0) - (c[p-1]||0), 0);
+  }
+  const arr = state.metric === 'dollars' ? item.dollars : state.metric === 'cogs' ? item.cogs : item.periods;
+  if (!arr) return 0;
+  return QUARTER_PERIODS[q].reduce((s, p) => s + (arr[p-1] || 0), 0);
+}
 function fmtPct(pct) {
   if (pct === null || isNaN(pct)) return '—';
   const sign = pct >= 0 ? '+' : '';
@@ -1616,6 +2328,229 @@ function catBadge(cat, code, item) {
 }
 
 // ═══════════════════════════════════════════════
+// MATERIAL ALLOWLIST
+// ═══════════════════════════════════════════════
+const DEFAULT_ALLOWED_MATERIAL_CODES = [
+  'RC224','RC225','RC226','RC228',
+  'RCC268','RCC2610','RCC288','RC2810',
+  'RCC148','RC188','RCC168','RCC248','RCC104',
+  'WARCH36','WARCH42','WARCH48','WARCH60','WARCH548','WARCH560',
+  'WHALO48','RC2610','RC268',
+  'CS134','CS135','CS136','CS138',
+  'RC144','RC145','RC146','RC148',
+  'WC166','S238','WC238','WC248','WCD238','WCD248','DCR8',
+];
+
+function getEffectiveAllowedMaterialCodes() {
+  // If user has added codes, merge with defaults; otherwise use defaults only
+  const base = [...DEFAULT_ALLOWED_MATERIAL_CODES];
+  state.allowedMaterialCodes.forEach(c => { if (!base.includes(c)) base.push(c); });
+  return base;
+}
+
+function isMaterialCodeAllowed(code) {
+  return getEffectiveAllowedMaterialCodes().includes(code);
+}
+
+// ═══════════════════════════════════════════════
+// MATERIAL CATEGORY SYSTEM
+// ═══════════════════════════════════════════════
+const MAT_DEFAULT_CAT = 'Wood Material';
+const MAT_CAT_COLOR = '#7da87d'; // muted green — distinct from sales palette
+
+function getMaterialCat(itemCode) {
+  return state.materialLabels[itemCode] || MAT_DEFAULT_CAT;
+}
+
+function getAllMaterialCategories() {
+  const cats = new Set([MAT_DEFAULT_CAT]);
+  Object.values(state.materialLabels).forEach(c => cats.add(c));
+  return [...cats];
+}
+
+function getMaterialCatColor(cat) {
+  // Default cat gets the base green; custom cats cycle through a palette
+  const palette = ['#7da87d','#5b9bd5','#9b7fd4','#e0885c','#4cb8b8','#e8c46a','#e05c5c','#d45b9b'];
+  const cats = getAllMaterialCategories();
+  const idx = cats.indexOf(cat);
+  return palette[idx % palette.length] || '#666';
+}
+
+function updateMatCatFilter() {
+  const el = document.getElementById('matProdLineFilter');
+  if (!el) return;
+  const cats = getAllMaterialCategories();
+  el.innerHTML = cats.map(cat => {
+    const active = state.matActiveCats.includes(cat);
+    const color = getMaterialCatColor(cat);
+    return `<div class="period-btn ${active ? 'active' : ''}" data-cat="${cat}"
+      style="${active ? `background:${color};border-color:${color};color:#000;` : `border-color:${color}44;color:${color};`}"
+      onclick="toggleMatCat('${cat}','${color}')">${cat}</div>`;
+  }).join('');
+  const hint = document.getElementById('matProdLineHint');
+  if (hint) hint.textContent = state.matActiveCats.length === 0 ? 'all' : state.matActiveCats.join(' + ');
+}
+
+function toggleMatCat(cat) {
+  const idx = state.matActiveCats.indexOf(cat);
+  if (idx === -1) state.matActiveCats.push(cat);
+  else state.matActiveCats.splice(idx, 1);
+  updateMatCatFilter();
+  runCompare();
+}
+
+// ═══════════════════════════════════════════════
+// COMPARE MODE SWITCH
+// ═══════════════════════════════════════════════
+function setCmpMode(mode) {
+  state.cmpMode = mode;
+  const isMat = mode === 'materials';
+  document.getElementById('cmpModeSales').classList.toggle('active', !isMat);
+  document.getElementById('cmpModeMaterials').classList.toggle('active', isMat);
+  // Toggle year selects
+  document.getElementById('salesYearGroup').style.display = isMat ? 'none' : '';
+  document.getElementById('salesVsYearGroup').style.display = isMat ? 'none' : '';
+  document.getElementById('matYearGroup').style.display = isMat ? '' : 'none';
+  document.getElementById('matVsYearGroup').style.display = isMat ? '' : 'none';
+  // Toggle filter row
+  document.getElementById('cmpCatFilter').style.display = isMat ? 'none' : 'flex';
+  document.getElementById('cmpCatHint').style.display = isMat ? 'none' : '';
+  document.getElementById('matProdLineFilter').style.display = isMat ? 'flex' : 'none';
+  document.getElementById('matProdLineHint').style.display = isMat ? '' : 'none';
+  document.getElementById('cmpFilterLabel').textContent = isMat ? 'Categories' : 'Categories';
+  // Metric toggle — hide $ / COGS / GP for materials (qty only meaningful)
+  const metricBtns = document.querySelectorAll('#cmpMetricSel .period-btn');
+  metricBtns.forEach(b => {
+    const txt = b.textContent.trim();
+    b.style.display = isMat ? (txt === 'QTY' ? '' : 'none') : '';
+  });
+  if (isMat) { setMetric('qty', 'cmpMetricSel'); updateMatCatFilter(); }
+  runCompare();
+}
+
+// updateMatProdLineFilter replaced by updateMatCatFilter above
+
+// ═══════════════════════════════════════════════
+// MATERIAL CATEGORY DROPDOWN
+// ═══════════════════════════════════════════════
+function showMatCatDropdown(code, x, y) {
+  const dd = document.getElementById('catDropdown');
+  const cats = getAllMaterialCategories();
+  const current = getMaterialCat(code);
+  dd.innerHTML = cats.map(c => {
+    const color = getMaterialCatColor(c);
+    return `<div class="cat-select-opt ${c===current?'active':''}" onclick="assignMatCat('${code}','${c}')">
+      <div class="cat-dot" style="background:${color};"></div>
+      ${c}${c===current?' ✓':''}
+    </div>`;
+  }).join('') +
+  `<div class="cat-select-opt" style="border-top:1px solid var(--border);color:var(--text3);" onclick="clearMatCat('${code}')">↩ Reset to default</div>`;
+  dd.style.left = x+'px';
+  dd.style.top = y+'px';
+  dd.style.display = 'block';
+}
+
+function assignMatCat(code, cat) {
+  state.materialLabels[code] = cat;
+  saveMaterialLabels();
+  hideCatDropdown();
+  updateMatCatFilter();
+  updateMatManageLegend();
+  runCompare();
+}
+
+function clearMatCat(code) {
+  delete state.materialLabels[code];
+  saveMaterialLabels();
+  hideCatDropdown();
+  updateMatCatFilter();
+  updateMatManageLegend();
+  runCompare();
+}
+
+// ═══════════════════════════════════════════════
+// EXCLUDED MATERIAL CODES
+// ═══════════════════════════════════════════════
+function addAllowedMaterialCode() {
+  const input = document.getElementById('newAllowedMaterialInput');
+  const val = input.value.trim().toUpperCase();
+  if (!val) return;
+  if (DEFAULT_ALLOWED_MATERIAL_CODES.includes(val)) {
+    alert(`${val} is already in the default list.`);
+    input.value = '';
+    return;
+  }
+  if (state.allowedMaterialCodes.includes(val)) {
+    input.value = '';
+    return;
+  }
+  state.allowedMaterialCodes.push(val);
+  saveAllowedMaterialCodes();
+  input.value = '';
+  updateAllowedMaterialCodesList();
+}
+
+function removeUserAllowedMaterialCode(code) {
+  state.allowedMaterialCodes = state.allowedMaterialCodes.filter(c => c !== code);
+  saveAllowedMaterialCodes();
+  updateAllowedMaterialCodesList();
+}
+
+function updateAllowedMaterialCodesList() {
+  const defaultEl = document.getElementById('defaultMaterialCodesList');
+  const userEl = document.getElementById('userAllowedMaterialCodesList');
+  const wrapEl = document.getElementById('userAllowedCodesWrap');
+  if (!defaultEl) return;
+
+  defaultEl.innerHTML = DEFAULT_ALLOWED_MATERIAL_CODES.map(c =>
+    `<div class="custom-label-tag" style="cursor:default;opacity:0.7;">
+      <span>${c}</span>
+    </div>`
+  ).join('');
+
+  if (userEl) {
+    userEl.innerHTML = state.allowedMaterialCodes.map(c =>
+      `<div class="custom-label-tag" onclick="removeUserAllowedMaterialCode('${c}')">
+        <span>${c}</span><span class="del-label">×</span>
+      </div>`
+    ).join('');
+  }
+  if (wrapEl) wrapEl.style.display = state.allowedMaterialCodes.length > 0 ? '' : 'none';
+}
+
+function addExcludedMaterialCode() {
+  const input = document.getElementById('newExcludeMaterialInput');
+  const val = input.value.trim().toUpperCase();
+  if (!val || state.excludedMaterialCodes.includes(val)) return;
+  state.excludedMaterialCodes.push(val);
+  saveExcludedMaterialCodes();
+  input.value = '';
+  // Remove from loaded issue data
+  getSortedIssueYears().forEach(y => {
+    state.issueYears[y].items = state.issueYears[y].items.filter(i => i.itemCode !== val);
+  });
+  saveIssueYears();
+  updateExcludedMaterialCodesList();
+  if (state.cmpMode === 'materials') runCompare();
+}
+
+function removeExcludedMaterialCode(code) {
+  state.excludedMaterialCodes = state.excludedMaterialCodes.filter(c => c !== code);
+  saveExcludedMaterialCodes();
+  updateExcludedMaterialCodesList();
+}
+
+function updateExcludedMaterialCodesList() {
+  const el = document.getElementById('excludedMaterialCodesList');
+  if (!el) return;
+  el.innerHTML = state.excludedMaterialCodes.map(c =>
+    `<div class="custom-label-tag" onclick="removeExcludedMaterialCode('${c}')">
+      <span>${c}</span><span class="del-label">×</span>
+    </div>`
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════
 // COMPARE TAB
 // ═══════════════════════════════════════════════
 let compareChartInst = null;
@@ -1641,6 +2576,7 @@ function selectCmpQuarter(q) {
 }
 
 function runCompare() {
+  if (state.cmpMode === 'materials') { runMaterialsCompare(); return; }
   const baseYear = parseInt(document.getElementById('cmpBaseYear').value);
   const vsYear = parseInt(document.getElementById('cmpVsYear').value);
   const period = getActivePeriod('cmpPeriodSel');
@@ -1668,11 +2604,11 @@ function runCompare() {
     const baseItem = getItemForYear(baseYear, item.itemCode);
     const vsItem = getItemForYear(vsYear, item.itemCode);
     const baseQty = activeQuarter
-      ? (baseItem ? getQuarterTotal(baseItem, activeQuarter) : 0)
-      : (baseItem ? getPeriodTotal(baseItem, period) : 0);
+      ? (baseItem ? getQuarterMetric(baseItem, activeQuarter) : 0)
+      : (baseItem ? getItemMetric(baseItem, period) : 0);
     const vsQty = activeQuarter
-      ? (vsItem ? getQuarterTotal(vsItem, activeQuarter) : 0)
-      : (vsItem ? getPeriodTotal(vsItem, period) : 0);
+      ? (vsItem ? getQuarterMetric(vsItem, activeQuarter) : 0)
+      : (vsItem ? getItemMetric(vsItem, period) : 0);
     if (baseQty === 0 && vsQty === 0) return;
     const pct = calcPct(baseQty, vsQty);
     rows.push({ ...item, baseQty, vsQty, pct, cat });
@@ -1702,6 +2638,7 @@ function runCompare() {
   `;
 
   const colLabel = periodLabel;
+  const metricLabel = getMetricLabel();
   const thStyle = (col) => `onclick="sortTable('${col}')" class="${state.sortCol===col?(state.sortDir==='asc'?'sorted-asc':'sorted-desc'):''}"`;
 
   document.getElementById('compareContent').innerHTML = `
@@ -1713,8 +2650,8 @@ function runCompare() {
             <th>Description</th>
             <th>Category</th>
             <th ${thStyle('prodLine')}>Prod Line</th>
-            <th ${thStyle('baseQty')} style="text-align:right">${baseYear} ${colLabel}</th>
-            <th ${thStyle('vsQty')} style="text-align:right">${vsYear} ${colLabel}</th>
+            <th ${thStyle('baseQty')} style="text-align:right">${baseYear} ${colLabel} (${metricLabel})</th>
+            <th ${thStyle('vsQty')} style="text-align:right">${vsYear} ${colLabel} (${metricLabel})</th>
             <th ${thStyle('pct')} style="text-align:right">Change</th>
             <th style="text-align:right">Diff</th>
           </tr>
@@ -1726,16 +2663,129 @@ function runCompare() {
               <td class="td-desc" title="${r.description}">${r.description||'—'}</td>
               <td>${catBadge(r.cat||'Other', r.itemCode, r)}</td>
               <td class="text-muted mono">${r.prodLine||'—'}</td>
-              <td class="td-num ${r.baseQty===0?'zero':''}">${fmt(r.baseQty)}</td>
-              <td class="td-num ${r.vsQty===0?'zero':''}">${fmt(r.vsQty)}</td>
+              <td class="td-num ${r.baseQty===0?'zero':''}">${fmtMetric(r.baseQty)}</td>
+              <td class="td-num ${r.vsQty===0?'zero':''}">${fmtMetric(r.vsQty)}</td>
               <td class="td-pct ${pctClass(r.pct)}">${fmtPct(r.pct)}</td>
-              <td class="td-num" style="color:${r.vsQty-r.baseQty>=0?'var(--green)':'var(--red)'}">${r.vsQty-r.baseQty>=0?'+':''}${(r.vsQty-r.baseQty).toLocaleString()}</td>
+              <td class="td-num" style="color:${r.vsQty-r.baseQty>=0?'var(--green)':'var(--red)'}">${r.vsQty-r.baseQty>=0?'+':''}${state.metric==='qty'?(r.vsQty-r.baseQty).toLocaleString():'$'+Math.round(r.vsQty-r.baseQty).toLocaleString()}</td>
             </tr>
           `).join('')}
         </tbody>
       </table>
     </div>
     ${rows.length === 0 ? '<div class="no-data">No items match current filters.</div>' : ''}
+  `;
+}
+
+function runMaterialsCompare() {
+  const baseYear = parseInt(document.getElementById('matBaseYear')?.value);
+  const vsYear   = parseInt(document.getElementById('matVsYear')?.value);
+  const period   = getActivePeriod('cmpPeriodSel');
+  const quarter  = state.cmpQuarter;
+
+  if (!baseYear || !vsYear) {
+    document.getElementById('compareContent').innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">No materials data</div><div class="empty-sub">Upload Inventory Issue History Report CSV files (one per year) to use this view.</div></div>';
+    return;
+  }
+  if (!state.issueYears[baseYear] || !state.issueYears[vsYear]) {
+    document.getElementById('compareContent').innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Missing material year data</div><div class="empty-sub">Load both years first.</div></div>';
+    return;
+  }
+
+  // Build unified item list across both years
+  const allCodes = new Map();
+  [baseYear, vsYear].forEach(y => {
+    state.issueYears[y].items.forEach(item => {
+      if (!allCodes.has(item.itemCode)) allCodes.set(item.itemCode, item);
+    });
+  });
+
+  const getIssued = (year, code, p, q) => {
+    const yearData = state.issueYears[year];
+    if (!yearData) return 0;
+    const item = yearData.items.find(i => i.itemCode === code);
+    if (!item) return 0;
+    if (q) return QUARTER_PERIODS[q].reduce((s, pp) => s + (item.issued[pp-1] || 0), 0);
+    if (p === 0) return item.issued.reduce((a,b) => a+b, 0);
+    return item.issued[p-1] || 0;
+  };
+
+  const activeQuarter = period === 0 ? quarter : 0;
+  const rows = [];
+  let totalBase = 0, totalVs = 0;
+
+  allCodes.forEach((item, code) => {
+    const matCat = getMaterialCat(code);
+    if (state.matActiveCats.length > 0 && !state.matActiveCats.includes(matCat)) return;
+    const baseQty = getIssued(baseYear, code, period, activeQuarter);
+    const vsQty   = getIssued(vsYear,   code, period, activeQuarter);
+    if (baseQty === 0 && vsQty === 0) return;
+    const pct = calcPct(baseQty, vsQty);
+    rows.push({ ...item, baseQty, vsQty, pct });
+    totalBase += baseQty;
+    totalVs   += vsQty;
+  });
+
+  // Sort
+  if (state.sortCol) {
+    rows.sort((a,b) => {
+      let va = a[state.sortCol], vb = b[state.sortCol];
+      if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+      if (va === null) va = Infinity; if (vb === null) vb = Infinity;
+      return state.sortDir === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
+    });
+  }
+
+  const totalPct = calcPct(totalBase, totalVs);
+  const periodLabel = activeQuarter
+    ? `Q${activeQuarter} (P${QUARTER_PERIODS[activeQuarter].join('+P')})`
+    : (period === 0 ? 'Full Year' : `Period ${period}`);
+
+  const statsEl = document.getElementById('cmpStats');
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = `
+    <div class="stat-card"><div class="stat-label">Materials Compared</div><div class="stat-value">${rows.length}</div><div class="stat-sub">filtered</div></div>
+    <div class="stat-card"><div class="stat-label">${baseYear} Total Issued</div><div class="stat-value">${totalBase.toLocaleString()}</div><div class="stat-sub">${periodLabel}</div></div>
+    <div class="stat-card"><div class="stat-label">${vsYear} Total Issued</div><div class="stat-value">${totalVs.toLocaleString()}</div><div class="stat-sub">${periodLabel}</div></div>
+    <div class="stat-card"><div class="stat-label">Change</div><div class="stat-value" style="color:${totalPct>=0?'var(--green)':'var(--red)'}">${fmtPct(totalPct)}</div><div class="stat-sub">${(totalVs-totalBase).toLocaleString()}</div></div>
+  `;
+
+  const thStyle = col => `onclick="sortTable('${col}')" class="${state.sortCol===col?(state.sortDir==='asc'?'sorted-asc':'sorted-desc'):''}"`;
+
+  document.getElementById('compareContent').innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th ${thStyle('itemCode')}>Item Code</th>
+            <th>Description</th>
+            <th>Category</th>
+            <th ${thStyle('prodLine')}>Prod Line</th>
+            <th ${thStyle('baseQty')} style="text-align:right">${baseYear} Issued ${periodLabel}</th>
+            <th ${thStyle('vsQty')} style="text-align:right">${vsYear} Issued ${periodLabel}</th>
+            <th ${thStyle('pct')} style="text-align:right">Change</th>
+            <th style="text-align:right">Diff</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => {
+            const matCat = getMaterialCat(r.itemCode);
+            const matColor = getMaterialCatColor(matCat);
+            return `<tr>
+              <td class="td-code">${r.itemCode}</td>
+              <td class="td-desc" title="${r.description}">${r.description||'—'}</td>
+              <td><span class="cat-badge" style="background:${matColor}22;color:${matColor};border-color:${matColor}44;"
+                onclick="event.stopPropagation();showMatCatDropdown('${r.itemCode}',event.clientX,event.clientY)">${matCat}</span></td>
+              <td class="text-muted mono">${r.prodLine||'—'}</td>
+              <td class="td-num ${r.baseQty===0?'zero':''}">${fmt(r.baseQty)}</td>
+              <td class="td-num ${r.vsQty===0?'zero':''}">${fmt(r.vsQty)}</td>
+              <td class="td-pct ${pctClass(r.pct)}">${fmtPct(r.pct)}</td>
+              <td class="td-num" style="color:${r.vsQty-r.baseQty>=0?'var(--green)':'var(--red)'}">${r.vsQty-r.baseQty>=0?'+':''}${(r.vsQty-r.baseQty).toLocaleString()}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    ${rows.length === 0 ? '<div class="no-data">No material items match current filters.</div>' : ''}
   `;
 }
 
@@ -1779,7 +2829,7 @@ function renderTrendsByCategory(years, items, period) {
     if (!data[cat]) return;
     years.forEach((y, yi) => {
       const yearItem = getItemForYear(y, item.itemCode);
-      if (yearItem) data[cat][yi] += getPeriodTotal(yearItem, period);
+      if (yearItem) data[cat][yi] += getItemMetric(yearItem, period);
     });
   });
 
@@ -1856,14 +2906,14 @@ function renderTrendsTop20(years, items, period) {
   const latestYear = years[years.length-1];
   const scored = items.map(item => {
     const yi = getItemForYear(latestYear, item.itemCode);
-    return { item, total: yi ? getPeriodTotal(yi, period) : 0 };
+    return { item, total: yi ? getItemMetric(yi, period) : 0 };
   }).sort((a,b) => b.total - a.total).slice(0, 20);
 
   const colors = ['#c8a84b','#5b9bd5','#4caf7d','#9b7fd4','#e0885c','#4cb8b8','#e05c5c','#d45b9b','#7fd48e','#5bd4c8'];
 
   document.getElementById('trendsContent').innerHTML = `
     <div class="chart-card full">
-      <div class="chart-title">Top 20 Items — Year Over Year (${period===0?'Full Year':'Period '+period})</div>
+      <div class="chart-title">Top 20 Items — Year Over Year (${period===0?'Full Year':'Period '+period}) — ${getMetricLabel()}</div>
       <div class="chart-container tall"><canvas id="top20Chart"></canvas></div>
     </div>
   `;
@@ -1877,14 +2927,14 @@ function renderTrendsTop20(years, items, period) {
         label: String(y),
         data: scored.map(s => {
           const yi2 = getItemForYear(y, s.item.itemCode);
-          return yi2 ? getPeriodTotal(yi2, period) : 0;
+          return yi2 ? getItemMetric(yi2, period) : 0;
         }),
         backgroundColor: colors[yi % colors.length] + '99',
         borderColor: colors[yi % colors.length],
         borderWidth: 1,
       }))
     },
-    options: chartOpts('Quantity Sold', true)
+    options: chartOpts(getMetricLabel(), true)
   });
 }
 
@@ -1897,7 +2947,7 @@ function renderTrendsByProdLine(years, items, period) {
     if (!pl || !data[pl]) return;
     years.forEach((y, yi) => {
       const yi2 = getItemForYear(y, item.itemCode);
-      if (yi2) data[pl][yi] += getPeriodTotal(yi2, period);
+      if (yi2) data[pl][yi] += getItemMetric(yi2, period);
     });
   });
 
@@ -2087,11 +3137,381 @@ function recalcProjections() {
 // ═══════════════════════════════════════════════
 let itemDetailChart = null;
 
+function toggleItemDetailYear(year) {
+  const idx = state.itemDetailExcludedYears.indexOf(year);
+  if (idx === -1) state.itemDetailExcludedYears.push(year);
+  else state.itemDetailExcludedYears.splice(idx, 1);
+  renderItemDetailChart();
+  renderItemDetailTable();
+}
+
+function renderItemDetailTable() {
+  const tbody = document.getElementById('itemDetailTbody');
+  if (!tbody) return;
+  const allYearData = JSON.parse(tbody.dataset.yeardata);
+  tbody.innerHTML = allYearData.map((yd, yi) => {
+    const excluded = state.itemDetailExcludedYears.includes(yd.year);
+    let prevYd = null;
+    for (let j = yi - 1; j >= 0; j--) {
+      if (!state.itemDetailExcludedYears.includes(allYearData[j].year)) { prevYd = allYearData[j]; break; }
+    }
+    const rowStyle = excluded ? 'opacity:0.3;' : '';
+    const arr = state.metric === 'dollars' ? yd.dollars
+      : state.metric === 'cogs' ? yd.cogs
+      : state.metric === 'profit' ? (yd.dollars||[]).map((d,i)=>d-(yd.cogs[i]||0))
+      : yd.periods;
+    const prevArr = prevYd ? (
+      state.metric === 'dollars' ? prevYd.dollars
+      : state.metric === 'cogs' ? prevYd.cogs
+      : state.metric === 'profit' ? (prevYd.dollars||[]).map((d,i)=>d-(prevYd.cogs[i]||0))
+      : prevYd.periods
+    ) : null;
+    const total = (arr || []).reduce((a,b)=>a+b, 0);
+    return `<tr style="${rowStyle}">
+      <td class="y-label mono" style="color:var(--accent);font-weight:600;cursor:pointer;user-select:none;"
+        onclick="toggleItemDetailYear(${yd.year})" title="Click to toggle year">
+        ${excluded ? `<span style="text-decoration:line-through;color:var(--text3);">${yd.year}</span>` : yd.year}
+      </td>
+      ${(arr||Array(12).fill(0)).map((v,pi) => {
+        const prev = prevArr ? prevArr[pi] : null;
+        const pct = prev !== null ? calcPct(prev, v) : null;
+        const sub = pct !== null && pct !== 0 ? `<div style="font-size:9px;${pct>0?'color:var(--green)':'color:var(--red)'}">${fmtPct(pct)}</div>` : '';
+        return `<td class="td-num ${v===0?'zero':''}">${fmtMetric(v)}${sub}</td>`;
+      }).join('')}
+      <td class="td-num" style="color:var(--accent);font-weight:600;">${fmtMetric(total)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderItemDetailChart() {
+  if (itemDetailChart) { itemDetailChart.destroy(); itemDetailChart = null; }
+  const canvas = document.getElementById('itemDetailChart');
+  if (!canvas) return;
+  const allYearData = JSON.parse(document.getElementById('itemDetailTbody').dataset.yeardata);
+  const activeYearData = allYearData.filter(yd => !state.itemDetailExcludedYears.includes(yd.year));
+  const colors = ['#c8a84b','#5b9bd5','#4caf7d','#9b7fd4','#e0885c','#4cb8b8','#e05c5c'];
+  // Keep original color index tied to full year list position
+  const colorMap = {};
+  allYearData.forEach((yd, i) => { colorMap[yd.year] = colors[i % colors.length]; });
+
+  itemDetailChart = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: Array.from({length:12},(_,i)=>'P'+(i+1)),
+      datasets: activeYearData.map(yd => {
+        const arr = state.metric === 'dollars' ? yd.dollars : state.metric === 'cogs' ? yd.cogs : yd.periods;
+        return {
+          label: String(yd.year),
+          data: arr || Array(12).fill(0),
+          borderColor: colorMap[yd.year],
+          backgroundColor: colorMap[yd.year]+'22',
+          borderWidth: 2,
+          pointRadius: 3,
+          fill: false,
+          tension: 0.3,
+        };
+      })
+    },
+    options: chartOpts(getMetricLabel(), false)
+  });
+}
+
+function renderProfitabilitySection(yearData, containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+
+  // Build per-year rows: Revenue, COGS, GP, Margin%
+  const rows = yearData.map(yd => {
+    const rev   = (yd.dollars || Array(12).fill(0));
+    const cogs  = (yd.cogs    || Array(12).fill(0));
+    const gp    = rev.map((r,i) => r - cogs[i]);
+    const totRev  = rev.reduce((a,b)=>a+b,0);
+    const totCogs = cogs.reduce((a,b)=>a+b,0);
+    const totGp   = totRev - totCogs;
+    const margin  = totRev > 0 ? (totGp / totRev * 100) : null;
+    return { year: yd.year, rev, cogs, gp, totRev, totCogs, totGp, margin };
+  });
+
+  const pCols = Array.from({length:12},(_,i)=>'P'+(i+1));
+
+  const tableHTML = `
+    <div class="profit-table-wrap">
+      <table class="profit-table">
+        <thead>
+          <tr>
+            <th style="text-align:left;min-width:80px;">Year / Metric</th>
+            ${pCols.map(p=>`<th>${p}</th>`).join('')}
+            <th>Total</th>
+            <th>Margin%</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => {
+            const gpClass = r.totGp >= 0 ? 'row-gp-pos' : 'row-gp-neg';
+            const gpCellClass = i => r.gp[i] >= 0 ? 'row-gp-pos' : 'row-gp-neg';
+            const marginStr = r.margin !== null ? r.margin.toFixed(1)+'%' : '—';
+            const marginColor = r.margin === null ? '' : r.margin >= 40 ? 'color:var(--green)' : r.margin >= 20 ? 'color:var(--purple)' : r.margin >= 0 ? 'color:var(--orange)' : 'color:var(--red)';
+            return `
+              <tr class="row-year-header"><td colspan="15" style="text-align:left;">${r.year}</td></tr>
+              <tr>
+                <td style="color:var(--text3);padding-left:16px;">Revenue</td>
+                ${r.rev.map(v=>`<td class="row-rev">${v===0?'—':fmtMoney(v)}</td>`).join('')}
+                <td class="row-rev" style="font-weight:600;">${fmtMoney(r.totRev)}</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td style="color:var(--text3);padding-left:16px;">COGS</td>
+                ${r.cogs.map(v=>`<td class="row-cogs">${v===0?'—':fmtMoney(v)}</td>`).join('')}
+                <td class="row-cogs" style="font-weight:600;">${fmtMoney(r.totCogs)}</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td style="color:var(--text3);padding-left:16px;">Gross Profit</td>
+                ${r.gp.map((v,i)=>`<td class="${v>=0?'row-gp-pos':'row-gp-neg'}">${v===0?'—':fmtMoney(v)}</td>`).join('')}
+                <td class="${gpClass}" style="font-weight:600;">${fmtMoney(r.totGp)}</td>
+                <td style="${marginColor};font-weight:600;">${marginStr}</td>
+              </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  // GP Margin % line chart across years
+  const chartHTML = `
+    <div class="chart-card full" style="margin-top:4px;">
+      <div class="chart-title">GP Margin % — Year Over Year</div>
+      <div class="chart-container"><canvas id="itemMarginChart"></canvas></div>
+    </div>
+  `;
+
+  el.innerHTML = tableHTML + chartHTML;
+
+  // Draw margin chart
+  const ctx = document.getElementById('itemMarginChart');
+  if (!ctx) return;
+  const marginByYear = rows.map(r => ({ year: r.year, margin: r.margin }));
+  const periodMargins = Array.from({length:12}, (_, pi) => {
+    return rows.map(r => {
+      const rev = r.rev[pi], cogs = r.cogs[pi];
+      return rev > 0 ? ((rev - cogs) / rev * 100) : null;
+    });
+  });
+
+  // Build datasets: one line per year showing per-period margin
+  const colors = ['#c8a84b','#5b9bd5','#4caf7d','#9b7fd4','#e0885c','#4cb8b8','#e05c5c'];
+  new Chart(ctx.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: Array.from({length:12},(_,i)=>'P'+(i+1)),
+      datasets: rows.map((r, i) => ({
+        label: String(r.year),
+        data: Array.from({length:12}, (_, pi) => {
+          const rev = r.rev[pi], cogs = r.cogs[pi];
+          return rev > 0 ? parseFloat(((rev - cogs) / rev * 100).toFixed(1)) : null;
+        }),
+        borderColor: colors[i % colors.length],
+        backgroundColor: colors[i % colors.length] + '22',
+        borderWidth: 2,
+        pointRadius: 3,
+        fill: false,
+        tension: 0.3,
+        spanGaps: true,
+      }))
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#999', font: { family: 'IBM Plex Mono', size: 10 }, boxWidth: 12 } },
+        tooltip: {
+          backgroundColor: '#1a1a1a', borderColor: '#444', borderWidth: 1,
+          titleColor: '#5b9bd5', bodyColor: '#ccc',
+          titleFont: { family: 'IBM Plex Mono' }, bodyFont: { family: 'IBM Plex Mono', size: 11 },
+          callbacks: { label: ctx => ctx.dataset.label + ': ' + (ctx.parsed.y !== null ? ctx.parsed.y.toFixed(1)+'%' : '—') }
+        }
+      },
+      scales: {
+        x: { grid: { color: '#2a2a2a' }, ticks: { color: '#666', font: { family: 'IBM Plex Mono', size: 10 } } },
+        y: {
+          grid: { color: '#2a2a2a' },
+          ticks: { color: '#666', font: { family: 'IBM Plex Mono', size: 10 }, callback: v => v+'%' },
+          title: { display: true, text: 'GP Margin %', color: '#555', font: { family: 'IBM Plex Mono', size: 10 } }
+        }
+      }
+    }
+  });
+}
+
+function setItemDataMode(mode) {
+  state.itemDataMode = mode;
+  document.getElementById('itemDataSales').classList.toggle('active', mode === 'sales');
+  document.getElementById('itemDataMaterials').classList.toggle('active', mode === 'materials');
+  if (mode === 'materials') runItemDetailMaterials();
+  else runItemDetail();
+}
+
+function runItemDetailMaterials() {
+  const code = document.getElementById('itemDetailSelect').value;
+  if (!code) return;
+  const issueYears = getSortedIssueYears();
+  if (!issueYears.length) return;
+
+  // Collect issue year data for this code
+  const yearData = issueYears.map(y => {
+    const item = state.issueYears[y]?.items.find(i => i.itemCode === code);
+    return {
+      year: y,
+      issued: item ? item.issued : Array(12).fill(0),
+      total: item ? item.issued.reduce((a,b)=>a+b,0) : 0,
+      description: item?.description || '',
+      prodLine: item?.prodLine || '',
+    };
+  }).filter(yd => yd.total > 0 || issueYears.includes(yd.year));
+
+  if (!yearData.length || yearData.every(yd => yd.total === 0)) {
+    document.getElementById('itemDetailContent').innerHTML = `
+      <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px;">
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:var(--accent);">${code}</div>
+          <div style="color:var(--text2);font-size:13px;margin-top:2px;">No material issue data found for this code.</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const meta = yearData.find(yd => yd.description) || yearData[0];
+  const matCat = getMaterialCat(code);
+  const matColor = getMaterialCatColor(matCat);
+
+  // Render HTML shell — tbody holds yearData for re-render
+  document.getElementById('itemDetailContent').innerHTML = `
+    <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#4caf7d;">${code}</div>
+        <div style="color:var(--text2);font-size:13px;margin-top:2px;">${meta.description||''}</div>
+        <div style="margin-top:6px;display:flex;gap:8px;align-items:center;">
+          <span class="cat-badge" style="background:${matColor}22;color:${matColor};border-color:${matColor}44;">${matCat}</span>
+          <span class="text-muted mono" style="font-size:10px;">Prod Line: ${meta.prodLine||'—'} · Material Issue Data</span>
+        </div>
+      </div>
+    </div>
+    <div class="table-wrap" style="margin-bottom:20px;">
+      <table>
+        <thead>
+          <tr>
+            <th title="Click year to hide/show">Year</th>
+            ${Array.from({length:12},(_,i)=>`<th style="text-align:right">P${i+1}</th>`).join('')}
+            <th style="text-align:right">Total</th>
+          </tr>
+        </thead>
+        <tbody id="itemMatTbody" data-yeardata='${JSON.stringify(yearData).replace(/'/g, "&#39;")}'></tbody>
+      </table>
+    </div>
+    <div class="chart-card full" style="margin-bottom:16px;">
+      <div class="chart-title">Material Issued — Year Over Year</div>
+      <div class="chart-container tall"><canvas id="itemMatChart"></canvas></div>
+    </div>
+    <div class="chart-card" style="margin-bottom:16px;">
+      <div class="chart-title">Annual Totals Issued</div>
+      <div class="chart-container"><canvas id="itemMatTotalChart"></canvas></div>
+    </div>
+  `;
+
+  state.itemMatExcludedYears = [];
+  renderItemMatTable();
+  renderItemMatChart();
+
+  // Annual totals bar chart (static — all years)
+  const ctx2 = document.getElementById('itemMatTotalChart').getContext('2d');
+  new Chart(ctx2, {
+    type: 'bar',
+    data: {
+      labels: yearData.map(yd => String(yd.year)),
+      datasets: [{ label: 'Total Issued', data: yearData.map(yd => yd.total), backgroundColor: '#4caf7d99', borderColor: '#4caf7d', borderWidth: 1 }]
+    },
+    options: chartOpts('Total Issued', false)
+  });
+}
+
+let itemMatChart = null;
+
+function toggleItemMatYear(year) {
+  if (!state.itemMatExcludedYears) state.itemMatExcludedYears = [];
+  const idx = state.itemMatExcludedYears.indexOf(year);
+  if (idx === -1) state.itemMatExcludedYears.push(year);
+  else state.itemMatExcludedYears.splice(idx, 1);
+  renderItemMatTable();
+  renderItemMatChart();
+}
+
+function renderItemMatTable() {
+  const tbody = document.getElementById('itemMatTbody');
+  if (!tbody) return;
+  if (!state.itemMatExcludedYears) state.itemMatExcludedYears = [];
+  const allYearData = JSON.parse(tbody.dataset.yeardata);
+  tbody.innerHTML = allYearData.map((yd, yi) => {
+    const excluded = state.itemMatExcludedYears.includes(yd.year);
+    let prevYd = null;
+    for (let j = yi - 1; j >= 0; j--) {
+      if (!state.itemMatExcludedYears.includes(allYearData[j].year)) { prevYd = allYearData[j]; break; }
+    }
+    const rowStyle = excluded ? 'opacity:0.3;' : '';
+    return `<tr style="${rowStyle}">
+      <td style="font-family:'IBM Plex Mono',monospace;font-weight:600;cursor:pointer;user-select:none;color:#4caf7d;"
+        onclick="toggleItemMatYear(${yd.year})" title="Click to toggle year">
+        ${excluded ? `<span style="text-decoration:line-through;color:var(--text3);">${yd.year}</span>` : yd.year}
+      </td>
+      ${yd.issued.map((v, pi) => {
+        const prev = prevYd ? prevYd.issued[pi] : null;
+        const pct = prev !== null ? calcPct(prev, v) : null;
+        const sub = (pct !== null && pct !== 0)
+          ? `<div style="font-size:9px;${pct>0?'color:var(--green)':'color:var(--red)'}">${fmtPct(pct)}</div>` : '';
+        return `<td class="td-num ${v===0?'zero':''}">${fmt(v)}${sub}</td>`;
+      }).join('')}
+      <td class="td-num" style="color:#4caf7d;font-weight:600;">${fmt(yd.total)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderItemMatChart() {
+  if (itemMatChart) { itemMatChart.destroy(); itemMatChart = null; }
+  const canvas = document.getElementById('itemMatChart');
+  if (!canvas) return;
+  if (!state.itemMatExcludedYears) state.itemMatExcludedYears = [];
+  const allYearData = JSON.parse(document.getElementById('itemMatTbody').dataset.yeardata);
+  const activeYearData = allYearData.filter(yd => !state.itemMatExcludedYears.includes(yd.year));
+  const colors = ['#c8a84b','#5b9bd5','#4caf7d','#9b7fd4','#e0885c','#4cb8b8','#e05c5c'];
+  const colorMap = {};
+  allYearData.forEach((yd, i) => { colorMap[yd.year] = colors[i % colors.length]; });
+
+  itemMatChart = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: Array.from({length:12},(_,i)=>'P'+(i+1)),
+      datasets: activeYearData.map(yd => ({
+        label: String(yd.year),
+        data: yd.issued,
+        borderColor: colorMap[yd.year],
+        backgroundColor: colorMap[yd.year] + '22',
+        borderWidth: 2, pointRadius: 3, fill: false, tension: 0.3,
+      }))
+    },
+    options: chartOpts('Qty Issued', false)
+  });
+}
+
 function runItemDetail() {
   const code = document.getElementById('itemDetailSelect').value;
   if (!code) return;
   const years = getSortedYears();
   if (!years.length) return;
+
+  // Reset excluded years and data mode when loading a new item
+  state.itemDetailExcludedYears = [];
+  state.itemDataMode = 'sales';
+  document.getElementById('itemDataSales').classList.add('active');
+  document.getElementById('itemDataMaterials').classList.remove('active');
 
   // Find item meta
   let itemMeta = null;
@@ -2101,43 +3521,25 @@ function runItemDetail() {
   });
   if (!itemMeta) return;
 
+  // Show SALES/MATERIALS toggle only if code exists in issue data too
+  const existsInMaterials = getSortedIssueYears().some(y =>
+    state.issueYears[y].items.some(i => i.itemCode === code)
+  );
+  document.getElementById('itemDataModeGroup').style.display = existsInMaterials ? '' : 'none';
+
   const cat = getEffectiveCat(code, itemMeta);
 
-  // Year data
+  // Year data — store all three metrics
   const yearData = years.map(y => {
     const item = getItemForYear(y, code);
-    return { year: y, periods: item ? item.periods : Array(12).fill(0), total: item ? item.periods.reduce((a,b)=>a+b,0) : 0 };
+    return {
+      year: y,
+      periods: item ? item.periods : Array(12).fill(0),
+      dollars: item ? (item.dollars || Array(12).fill(0)) : Array(12).fill(0),
+      cogs: item ? (item.cogs || Array(12).fill(0)) : Array(12).fill(0),
+      total: item ? item.periods.reduce((a,b)=>a+b,0) : 0
+    };
   });
-
-  // Period table
-  const periodTableHTML = `
-    <div class="table-wrap" style="margin-bottom:20px;">
-      <table>
-        <thead>
-          <tr>
-            <th>Year</th>
-            ${Array.from({length:12},(_,i)=>`<th style="text-align:right">P${i+1}</th>`).join('')}
-            <th style="text-align:right">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${yearData.map((yd, yi) => {
-            const prevYd = yi > 0 ? yearData[yi-1] : null;
-            return `<tr>
-              <td class="y-label mono" style="color:var(--accent);font-weight:600;">${yd.year}</td>
-              ${yd.periods.map((v,pi) => {
-                const prev = prevYd ? prevYd.periods[pi] : null;
-                const pct = prev !== null ? calcPct(prev, v) : null;
-                const sub = pct !== null && pct !== 0 ? `<div style="font-size:9px;${pct>0?'color:var(--green)':'color:var(--red)'}">${fmtPct(pct)}</div>` : '';
-                return `<td class="td-num ${v===0?'zero':''}">${fmt(v)}${sub}</td>`;
-              }).join('')}
-              <td class="td-num" style="color:var(--accent);font-weight:600;">${fmt(yd.total)}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
 
   document.getElementById('itemDetailContent').innerHTML = `
     <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
@@ -2150,7 +3552,27 @@ function runItemDetail() {
         </div>
       </div>
     </div>
-    ${periodTableHTML}
+    <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center;">
+      <span style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;">Metric</span>
+      <div class="period-selector" id="itemMetricSel">
+        <div class="period-btn active" onclick="setMetric('qty','itemMetricSel');renderItemDetailTable();renderItemDetailChart();">QTY</div>
+        <div class="period-btn" onclick="setMetric('dollars','itemMetricSel');renderItemDetailTable();renderItemDetailChart();">$</div>
+        <div class="period-btn" onclick="setMetric('cogs','itemMetricSel');renderItemDetailTable();renderItemDetailChart();">COGS</div>
+        <div class="period-btn" onclick="setMetric('profit','itemMetricSel');renderItemDetailTable();renderItemDetailChart();">GP</div>
+      </div>
+    </div>
+    <div class="table-wrap" style="margin-bottom:20px;">
+      <table>
+        <thead>
+          <tr>
+            <th title="Click a year to hide/show it">Year</th>
+            ${Array.from({length:12},(_,i)=>`<th style="text-align:right">P${i+1}</th>`).join('')}
+            <th style="text-align:right">Total</th>
+          </tr>
+        </thead>
+        <tbody id="itemDetailTbody" data-yeardata='${JSON.stringify(yearData)}'></tbody>
+      </table>
+    </div>
     <div class="chart-grid">
       <div class="chart-card full">
         <div class="chart-title">Year Over Year — All Periods</div>
@@ -2165,31 +3587,16 @@ function runItemDetail() {
         <div class="chart-container"><canvas id="itemPeriodChart"></canvas></div>
       </div>
     </div>
+    <div class="profit-section">
+      <div class="profit-section-title">Cost &amp; Profitability</div>
+      <div id="profitabilitySection"></div>
+    </div>
   `;
 
-  if (itemDetailChart) { itemDetailChart.destroy(); itemDetailChart = null; }
+  renderItemDetailTable();
+  renderItemDetailChart();
 
   const colors = ['#c8a84b','#5b9bd5','#4caf7d','#9b7fd4','#e0885c','#4cb8b8','#e05c5c'];
-
-  // Multi-year period chart
-  const ctx1 = document.getElementById('itemDetailChart').getContext('2d');
-  itemDetailChart = new Chart(ctx1, {
-    type: 'line',
-    data: {
-      labels: Array.from({length:12},(_,i)=>'P'+(i+1)),
-      datasets: yearData.map((yd, i) => ({
-        label: String(yd.year),
-        data: yd.periods,
-        borderColor: colors[i%colors.length],
-        backgroundColor: colors[i%colors.length]+'22',
-        borderWidth: 2,
-        pointRadius: 3,
-        fill: false,
-        tension: 0.3,
-      }))
-    },
-    options: chartOpts('Quantity Sold', false)
-  });
 
   // Total bar
   const ctx2 = document.getElementById('itemTotalChart').getContext('2d');
@@ -2213,16 +3620,613 @@ function runItemDetail() {
     },
     options: chartOpts('Qty Sold', false)
   });
+
+  renderProfitabilitySection(yearData, 'profitabilitySection');
+}
+
+// ═══════════════════════════════════════════════
+// CUSTOM COMPARE TAB
+// ═══════════════════════════════════════════════
+const customState = {
+  items: [],
+  matItems: [],        // material item codes in materials+items mode
+  years: [],
+  matYears: [],        // selected years for materials mode
+  quarter: 0,
+  mode: 'items',       // 'items' | 'categories'
+  dataMode: 'sales',   // 'sales' | 'materials'
+  selectedCats: [],
+  selectedMatCats: [], // selected material categories in materials+categories mode
+};
+
+function updateCustomYearSel() {
+  const el = document.getElementById('customYearSel');
+  if (!el) return;
+  const years = getSortedYears();
+  // Pre-select all years only on first load (when customState.years is empty)
+  if (customState.years.length === 0) {
+    years.forEach(y => customState.years.push(y));
+  }
+  el.innerHTML = years.map(y => {
+    const on = customState.years.includes(y);
+    return `<div class="period-btn ${on?'active':''}" onclick="toggleCustomYear(${y})">${y}</div>`;
+  }).join('');
+}
+
+function toggleCustomYear(y) {
+  const idx = customState.years.indexOf(y);
+  if (idx === -1) customState.years.push(y);
+  else customState.years.splice(idx, 1);
+  customState.years.sort();
+  // Re-render just the year buttons
+  const years = getSortedYears();
+  const el = document.getElementById('customYearSel');
+  if (el) el.innerHTML = years.map(y2 => {
+    const on = customState.years.includes(y2);
+    return `<div class="period-btn ${on?'active':''}" onclick="toggleCustomYear(${y2})">${y2}</div>`;
+  }).join('');
+}
+
+function selectCustomQuarter(q) {
+  customState.quarter = customState.quarter === q ? 0 : q;
+  document.querySelectorAll('#customQuarterSel .period-btn').forEach(b => b.classList.remove('active'));
+  if (customState.quarter) {
+    document.querySelector(`#customQuarterSel .period-btn[data-q="${q}"]`).classList.add('active');
+    document.querySelectorAll('#customPeriodSel .period-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('#customPeriodSel .period-btn[data-p="0"]').classList.add('active');
+  }
+}
+
+function addCustomItem(itemCode, description, prodLine) {
+  if (customState.items.find(i => i.itemCode === itemCode)) return;
+  customState.items.push({ itemCode, description, prodLine });
+  renderCustomItemChips();
+}
+
+function removeCustomItem(itemCode) {
+  customState.items = customState.items.filter(i => i.itemCode !== itemCode);
+  renderCustomItemChips();
+}
+
+function renderCustomItemChips() {
+  const el = document.getElementById('customItemChips');
+  const hint = document.getElementById('customItemsHint');
+  if (!el) return;
+  el.innerHTML = customState.items.map(i =>
+    `<div class="custom-label-tag" style="font-family:'IBM Plex Mono',monospace;">
+      <span style="color:var(--accent);font-weight:600;">${i.itemCode}</span>
+      ${i.description ? `<span style="color:var(--text3);font-size:10px;margin-left:2px;">${i.description.slice(0,30)}</span>` : ''}
+      <span class="del-label" onclick="removeCustomItem('${i.itemCode}')">×</span>
+    </div>`
+  ).join('');
+  if (hint) hint.style.display = customState.items.length ? 'none' : '';
+}
+
+function setCustomMode(mode) {
+  customState.mode = mode;
+  const isMat = customState.dataMode === 'materials';
+  document.getElementById('customModeItems').classList.toggle('active', mode === 'items');
+  document.getElementById('customModeCats').classList.toggle('active', mode === 'categories');
+  // Sales rows
+  document.getElementById('customSearchGroup').style.display = (!isMat && mode === 'items') ? '' : 'none';
+  document.getElementById('customItemsRow').style.display    = (!isMat && mode === 'items') ? 'flex' : 'none';
+  document.getElementById('customCatsRow').style.display     = (!isMat && mode === 'categories') ? 'flex' : 'none';
+  // Materials rows
+  document.getElementById('customMatItemsRow').style.display = (isMat && mode === 'items') ? 'flex' : 'none';
+  document.getElementById('customMatCatsRow').style.display  = (isMat && mode === 'categories') ? 'flex' : 'none';
+  if (!isMat && mode === 'categories') renderCustomCatChips();
+  if (isMat && mode === 'categories') renderCustomMatCatChips();
+}
+
+function setCustomDataMode(dataMode) {
+  customState.dataMode = dataMode;
+  const isMat = dataMode === 'materials';
+  document.getElementById('customDataSales').classList.toggle('active', !isMat);
+  document.getElementById('customDataMaterials').classList.toggle('active', isMat);
+  // Show/hide year rows
+  document.getElementById('customSalesYearRow').style.display = isMat ? 'none' : 'flex';
+  document.getElementById('customMatYearRow').style.display = isMat ? 'flex' : 'none';
+  // Show/hide item/cat rows
+  const mode = customState.mode;
+  document.getElementById('customItemsRow').style.display    = (!isMat && mode === 'items')      ? 'flex' : 'none';
+  document.getElementById('customCatsRow').style.display     = (!isMat && mode === 'categories')  ? 'flex' : 'none';
+  document.getElementById('customMatItemsRow').style.display = (isMat  && mode === 'items')      ? 'flex' : 'none';
+  document.getElementById('customMatCatsRow').style.display  = (isMat  && mode === 'categories') ? 'flex' : 'none';
+  document.getElementById('customSearchGroup').style.display = (!isMat && mode === 'items')      ? ''     : 'none';
+  // Hide $/COGS/GP metric for materials
+  const metricBtns = document.querySelectorAll('#customMetricSel .period-btn');
+  metricBtns.forEach(b => {
+    const t = b.textContent.trim();
+    b.style.display = isMat ? (t === 'QTY' ? '' : 'none') : '';
+  });
+  if (isMat) setMetric('qty', 'customMetricSel');
+  // Populate mat years
+  if (isMat) { updateCustomMatYearSel(); renderCustomMatCatChips(); }
+}
+
+function updateCustomMatYearSel() {
+  const el = document.getElementById('customMatYearSel');
+  if (!el) return;
+  const years = getSortedIssueYears();
+  if (customState.matYears.length === 0) years.forEach(y => customState.matYears.push(y));
+  el.innerHTML = years.map(y => {
+    const on = customState.matYears.includes(y);
+    return `<div class="period-btn ${on?'active':''}" onclick="toggleCustomMatYear(${y})">${y}</div>`;
+  }).join('');
+}
+
+function toggleCustomMatYear(y) {
+  const idx = customState.matYears.indexOf(y);
+  if (idx === -1) customState.matYears.push(y);
+  else customState.matYears.splice(idx, 1);
+  customState.matYears.sort();
+  updateCustomMatYearSel();
+}
+
+function renderCustomMatCatChips() {
+  const el = document.getElementById('customMatCatChips');
+  const hint = document.getElementById('customMatCatsHint');
+  if (!el) return;
+  const cats = getAllMaterialCategories();
+  el.innerHTML = cats.map(cat => {
+    const color = getMaterialCatColor(cat);
+    const active = customState.selectedMatCats.includes(cat);
+    return `<div class="period-btn ${active?'active':''}"
+      style="${active?`background:${color};border-color:${color};color:#000;`:`border-color:${color}44;color:${color};`}"
+      onclick="toggleCustomMatCat('${cat}')">${cat}</div>`;
+  }).join('');
+  if (hint) hint.style.display = customState.selectedMatCats.length ? 'none' : '';
+}
+
+function toggleCustomMatCat(cat) {
+  const idx = customState.selectedMatCats.indexOf(cat);
+  if (idx === -1) customState.selectedMatCats.push(cat);
+  else customState.selectedMatCats.splice(idx, 1);
+  renderCustomMatCatChips();
+}
+
+function addCustomMatItem(itemCode, description) {
+  if (customState.matItems.find(i => i.itemCode === itemCode)) return;
+  customState.matItems.push({ itemCode, description });
+  renderCustomMatItemChips();
+}
+
+function removeCustomMatItem(itemCode) {
+  customState.matItems = customState.matItems.filter(i => i.itemCode !== itemCode);
+  renderCustomMatItemChips();
+}
+
+function renderCustomMatItemChips() {
+  const el = document.getElementById('customMatItemChips');
+  const hint = document.getElementById('customMatItemsHint');
+  if (!el) return;
+  el.innerHTML = customState.matItems.map(i =>
+    `<div class="custom-label-tag" style="font-family:'IBM Plex Mono',monospace;">
+      <span style="color:#4caf7d;font-weight:600;">${i.itemCode}</span>
+      ${i.description ? `<span style="color:var(--text3);font-size:10px;margin-left:2px;">${i.description.slice(0,30)}</span>` : ''}
+      <span class="del-label" onclick="removeCustomMatItem('${i.itemCode}')">×</span>
+    </div>`
+  ).join('');
+  if (hint) hint.style.display = customState.matItems.length ? 'none' : '';
+}
+
+function renderCustomCatChips() {
+  const el = document.getElementById('customCatChips');
+  const hint = document.getElementById('customCatsHint');
+  if (!el) return;
+  const palMap = {
+    '--cat-fence':'#5b9bd5','--cat-gate':'#9b7fd4','--cat-post':'#c8a84b',
+    '--cat-picket':'#4caf7d','--cat-stock':'#4cb8b8','--cat-pergola':'#e0885c',
+    '--cat-material':'#999','--cat-custom':'#e05c5c',
+  };
+  const cats = getAllCategories();
+  el.innerHTML = cats.map(cat => {
+    const cssVar = getCatColor(cat).replace('var(','').replace(')','');
+    const color = palMap[cssVar] || '#888';
+    const active = customState.selectedCats.includes(cat);
+    return `<div class="period-btn ${active?'active':''}" 
+      style="${active?`background:${color};border-color:${color};color:#000;`:`border-color:${color}44;color:${color};`}"
+      onclick="toggleCustomCat('${cat}')">${cat}</div>`;
+  }).join('');
+  if (hint) hint.style.display = customState.selectedCats.length ? 'none' : '';
+}
+
+function toggleCustomCat(cat) {
+  const idx = customState.selectedCats.indexOf(cat);
+  if (idx === -1) customState.selectedCats.push(cat);
+  else customState.selectedCats.splice(idx, 1);
+  renderCustomCatChips();
+}
+
+function runCustomCompareMaterials() {
+  const years = customState.matYears.slice().sort();
+  if (!years.length) {
+    document.getElementById('customContent').innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">No years selected</div><div class="empty-sub">Select at least one material year above.</div></div>';
+    return;
+  }
+
+  const period = getActivePeriod('customPeriodSel');
+  const quarter = customState.quarter;
+  const activeQuarter = period === 0 ? quarter : 0;
+
+  const getIssued = (year, code) => {
+    const yd = state.issueYears[year];
+    if (!yd) return 0;
+    const item = yd.items.find(i => i.itemCode === code);
+    if (!item) return 0;
+    if (activeQuarter) return QUARTER_PERIODS[activeQuarter].reduce((s,p) => s + (item.issued[p-1]||0), 0);
+    if (period === 0) return item.issued.reduce((a,b)=>a+b,0);
+    return item.issued[period-1]||0;
+  };
+
+  const periodLabel = activeQuarter
+    ? `Q${activeQuarter} (P${QUARTER_PERIODS[activeQuarter].join('+P')})`
+    : (period === 0 ? 'Full Year' : `Period ${period}`);
+
+  let rows = [];
+
+  if (customState.mode === 'items') {
+    // Per-item rows
+    if (!customState.matItems.length) {
+      document.getElementById('customContent').innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">No materials added</div><div class="empty-sub">Type a material code in the search box above to add items.</div></div>';
+      return;
+    }
+    rows = customState.matItems.map(item => {
+      const cat = getMaterialCat(item.itemCode);
+      const color = getMaterialCatColor(cat);
+      const yearVals = years.map(y => getIssued(y, item.itemCode));
+      return { label: item.itemCode, desc: item.description||'—', cat, color, yearVals };
+    });
+  } else {
+    // Show all individual material items, filtered by selected categories (empty = all)
+    const activeCats = customState.selectedMatCats;
+    const allMatItems = new Map();
+    years.forEach(y => {
+      (state.issueYears[y]?.items || []).forEach(i => {
+        if (!allMatItems.has(i.itemCode)) allMatItems.set(i.itemCode, i);
+      });
+    });
+    rows = [...allMatItems.values()]
+      .filter(i => activeCats.length === 0 || activeCats.includes(getMaterialCat(i.itemCode)))
+      .map(item => {
+        const cat = getMaterialCat(item.itemCode);
+        const color = getMaterialCatColor(cat);
+        const yearVals = years.map(y => getIssued(y, item.itemCode));
+        return { label: item.itemCode, desc: item.description||'—', cat, color, yearVals };
+      })
+      .filter(r => r.yearVals.some(v => v > 0))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  if (!rows.length) {
+    document.getElementById('customContent').innerHTML = '<div class="no-data">No data found for selected years/items.</div>';
+    return;
+  }
+
+  // Build table — one col per year + change cols between consecutive pairs
+  const yearHeaders = years.map((y, i) => {
+    const prev = years[i-1];
+    return (i > 0 ? `<th style="text-align:right;color:var(--text3);font-size:9px;">vs ${prev}</th>` : '') +
+      `<th style="text-align:right">${y} ${periodLabel}</th>`;
+  }).join('');
+
+  const tableRows = rows.map(r => {
+    const cells = r.yearVals.map((v, i) => {
+      const prev = i > 0 ? r.yearVals[i-1] : null;
+      const pct = prev !== null ? calcPct(prev, v) : null;
+      const pctCell = pct !== null
+        ? `<td class="td-pct ${pctClass(pct)}">${fmtPct(pct)}</td>` : '';
+      return pctCell + `<td class="td-num ${v===0?'zero':''}">${fmt(v)}</td>`;
+    }).join('');
+    return `<tr>
+      <td class="td-code" style="color:${r.color};">${r.label}</td>
+      <td class="td-desc">${r.desc}</td>
+      <td><span class="cat-badge" style="background:${r.color}22;color:${r.color};border-color:${r.color}44;">${r.cat}</span></td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  document.getElementById('customContent').innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Material Code</th>
+          <th>Description</th>
+          <th>Category</th>
+          ${yearHeaders}
+        </tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function initCustomMatTypeahead() {
+  const input = document.getElementById('customMatSearch');
+  const suggestions = document.getElementById('customMatSuggestions');
+  if (!input) return;
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    if (!q) { suggestions.style.display = 'none'; return; }
+    // Search across all loaded issue years
+    const allMatItems = new Map();
+    getSortedIssueYears().forEach(y => {
+      (state.issueYears[y]?.items || []).forEach(i => {
+        if (!allMatItems.has(i.itemCode)) allMatItems.set(i.itemCode, i);
+      });
+    });
+    const matches = [...allMatItems.values()].filter(i =>
+      i.itemCode.toLowerCase().includes(q) ||
+      (i.description && i.description.toLowerCase().includes(q))
+    ).slice(0, 30);
+    if (!matches.length) { suggestions.style.display = 'none'; return; }
+    suggestions.innerHTML = matches.map(i => {
+      const desc = i.description ? ' — ' + i.description.slice(0,50) : '';
+      return `<div class="item-suggestion" data-code="${i.itemCode}" data-desc="${i.description||''}"
+        style="padding:7px 12px;cursor:pointer;font-size:11px;font-family:'IBM Plex Mono',monospace;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:baseline;">
+        <span style="color:#4caf7d;font-weight:600;">${i.itemCode}</span>
+        <span style="color:var(--text3);font-size:10px;">${desc}</span>
+      </div>`;
+    }).join('');
+    suggestions.style.display = 'block';
+    suggestions.querySelectorAll('.item-suggestion').forEach(el => {
+      el.addEventListener('mouseenter', () => el.style.background = 'var(--surface3)');
+      el.addEventListener('mouseleave', () => el.style.background = '');
+      el.addEventListener('mousedown', e => {
+        e.preventDefault();
+        addCustomMatItem(el.dataset.code, el.dataset.desc);
+        input.value = '';
+        suggestions.style.display = 'none';
+      });
+    });
+  });
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#customMatSuggestions') && e.target.id !== 'customMatSearch') {
+      suggestions.style.display = 'none';
+    }
+  });
+}
+
+function initCustomTypeahead() {
+  const input = document.getElementById('customSearch');
+  const suggestions = document.getElementById('customSuggestions');
+  if (!input) return;
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    if (!q) { suggestions.style.display = 'none'; return; }
+    const matches = _itemDetailAll.filter(i =>
+      i.itemCode.toLowerCase().includes(q) ||
+      (i.description && i.description.toLowerCase().includes(q))
+    ).slice(0, 40);
+    if (!matches.length) { suggestions.style.display = 'none'; return; }
+    suggestions.innerHTML = matches.map(i => {
+      const desc = i.description ? ' — ' + i.description.slice(0,55) : '';
+      return `<div class="item-suggestion" data-code="${i.itemCode}" data-desc="${i.description||''}" data-pl="${i.prodLine||''}" style="padding:7px 12px;cursor:pointer;font-size:11px;font-family:'IBM Plex Mono',monospace;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:baseline;">
+        <span style="color:var(--accent);font-weight:600;">${i.itemCode}</span>
+        <span style="color:var(--text3);font-size:10px;">${desc}</span>
+      </div>`;
+    }).join('');
+    suggestions.style.display = 'block';
+    suggestions.querySelectorAll('.item-suggestion').forEach(el => {
+      el.addEventListener('mouseenter', () => el.style.background = 'var(--surface3)');
+      el.addEventListener('mouseleave', () => el.style.background = '');
+      el.addEventListener('mousedown', e => {
+        e.preventDefault();
+        addCustomItem(el.dataset.code, el.dataset.desc, el.dataset.pl);
+        input.value = '';
+        suggestions.style.display = 'none';
+      });
+    });
+  });
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { suggestions.style.display = 'none'; return; }
+    if (e.key === 'Enter') {
+      const first = suggestions.querySelector('.item-suggestion');
+      if (first) first.dispatchEvent(new MouseEvent('mousedown'));
+    }
+    if (e.key === 'ArrowDown') {
+      const its = [...suggestions.querySelectorAll('.item-suggestion')];
+      const foc = suggestions.querySelector('.item-suggestion.focused');
+      const idx = foc ? its.indexOf(foc) : -1;
+      if (foc) { foc.classList.remove('focused'); foc.style.background = ''; }
+      const nxt = its[idx+1] || its[0];
+      if (nxt) { nxt.classList.add('focused'); nxt.style.background = 'var(--surface3)'; nxt.scrollIntoView({block:'nearest'}); }
+    }
+    if (e.key === 'ArrowUp') {
+      const its = [...suggestions.querySelectorAll('.item-suggestion')];
+      const foc = suggestions.querySelector('.item-suggestion.focused');
+      const idx = foc ? its.indexOf(foc) : its.length;
+      if (foc) { foc.classList.remove('focused'); foc.style.background = ''; }
+      const prv = its[idx-1] || its[its.length-1];
+      if (prv) { prv.classList.add('focused'); prv.style.background = 'var(--surface3)'; prv.scrollIntoView({block:'nearest'}); }
+    }
+  });
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#customSuggestions') && e.target.id !== 'customSearch') suggestions.style.display = 'none';
+  });
+}
+
+function runCustomCompare() {
+  if (customState.dataMode === 'materials') { runCustomCompareMaterials(); return; }
+  if (customState.mode === 'categories') { runCustomCompareCategories(); return; }
+
+  if (!customState.items.length) {
+    document.getElementById('customContent').innerHTML = '<div class="empty-state"><div class="empty-icon">🎯</div><div class="empty-title">No items added</div><div class="empty-sub">Search and add item codes above.</div></div>';
+    return;
+  }
+  if (!customState.years.length) {
+    document.getElementById('customContent').innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">No years selected</div></div>';
+    return;
+  }
+
+  const period = getActivePeriod('customPeriodSel');
+  const quarter = customState.quarter;
+  const activeYears = customState.years.filter(y => state.years[y]);
+
+  const periodLabel = quarter
+    ? `Q${quarter} (P${QUARTER_PERIODS[quarter].join('+P')})`
+    : (period === 0 ? 'Full Year' : `Period ${period}`);
+
+  const metricLabel = getMetricLabel();
+  const colors = ['#c8a84b','#5b9bd5','#4caf7d','#9b7fd4','#e0885c','#4cb8b8','#e05c5c'];
+
+  // Build rows
+  const rows = customState.items.map(item => {
+    const yearQtys = activeYears.map(y => {
+      const yi = getItemForYear(y, item.itemCode);
+      if (!yi) return 0;
+      return quarter ? getQuarterMetric(yi, quarter) : getItemMetric(yi, period);
+    });
+    return { ...item, yearQtys };
+  });
+
+  // Totals per year
+  const yearTotals = activeYears.map((y, yi) => rows.reduce((s, r) => s + r.yearQtys[yi], 0));
+
+  // Table header
+  const yearHeaders = activeYears.map((y, yi) =>
+    `<th style="text-align:right;color:${colors[yi%colors.length]};">${y}<div style="font-size:9px;color:var(--text3);font-weight:400;">${periodLabel} (${metricLabel})</div></th>` +
+    (yi < activeYears.length - 1 ? `<th style="text-align:right;font-size:9px;">vs ${activeYears[yi+1]}</th>` : '')
+  ).join('');
+
+  const tableRows = rows.map(r => {
+    const cat = getEffectiveCat(r.itemCode, r);
+    const cells = r.yearQtys.map((qty, yi) => {
+      const base = `<td class="td-num ${qty===0?'zero':''}">${fmtMetric(qty)}</td>`;
+      if (yi < activeYears.length - 1) {
+        const nextQty = r.yearQtys[yi+1];
+        const pct = calcPct(qty, nextQty);
+        return base + `<td class="td-pct ${pctClass(pct)}" style="font-size:10px;">${fmtPct(pct)}</td>`;
+      }
+      return base;
+    }).join('');
+    return `<tr>
+      <td class="td-code">${r.itemCode}</td>
+      <td class="td-desc" title="${r.description}">${r.description||'—'}</td>
+      <td>${catBadge(cat||'Other', r.itemCode, r)}</td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  document.getElementById('customContent').innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Item Code</th>
+            <th>Description</th>
+            <th>Category</th>
+            ${yearHeaders}
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function runCustomCompareCategories() {
+  const cats = customState.selectedCats.length ? customState.selectedCats : getAllCategories();
+  if (!customState.years.length) {
+    document.getElementById('customContent').innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">No years selected</div></div>';
+    return;
+  }
+
+  const period = getActivePeriod('customPeriodSel');
+  const quarter = customState.quarter;
+  const activeYears = customState.years.filter(y => state.years[y]);
+  const allItems = getAllUniqueItems();
+
+  const periodLabel = quarter
+    ? `Q${quarter} (P${QUARTER_PERIODS[quarter].join('+P')})`
+    : (period === 0 ? 'Full Year' : `Period ${period}`);
+  const metricLabel = getMetricLabel();
+  const colors = ['#c8a84b','#5b9bd5','#4caf7d','#9b7fd4','#e0885c','#4cb8b8','#e05c5c'];
+  const palMap = {
+    '--cat-fence':'#5b9bd5','--cat-gate':'#9b7fd4','--cat-post':'#c8a84b',
+    '--cat-picket':'#4caf7d','--cat-stock':'#4cb8b8','--cat-pergola':'#e0885c',
+    '--cat-material':'#999','--cat-custom':'#e05c5c',
+  };
+
+  const rows = cats.map(cat => {
+    const yearQtys = activeYears.map(y => {
+      return allItems
+        .filter(item => getEffectiveCat(item.itemCode, item) === cat)
+        .reduce((sum, item) => {
+          const yi = getItemForYear(y, item.itemCode);
+          if (!yi) return sum;
+          return sum + (quarter ? getQuarterMetric(yi, quarter) : getItemMetric(yi, period));
+        }, 0);
+    });
+    return { cat, yearQtys };
+  }).filter(r => r.yearQtys.some(v => v > 0));
+
+  const yearHeaders = activeYears.map((y, yi) =>
+    `<th style="text-align:right;color:${colors[yi%colors.length]};">${y}<div style="font-size:9px;color:var(--text3);font-weight:400;">${periodLabel} (${metricLabel})</div></th>` +
+    (yi < activeYears.length - 1 ? `<th style="text-align:right;font-size:9px;">vs ${activeYears[yi+1]}</th>` : '')
+  ).join('');
+
+  const tableRows = rows.map(r => {
+    const color = palMap[getCatColor(r.cat).replace('var(','').replace(')','')]||'#888';
+    const cells = r.yearQtys.map((qty, yi) => {
+      const base = `<td class="td-num ${qty===0?'zero':''}">${fmtMetric(qty)}</td>`;
+      if (yi < activeYears.length - 1) {
+        const pct = calcPct(qty, r.yearQtys[yi+1]);
+        return base + `<td class="td-pct ${pctClass(pct)}" style="font-size:10px;">${fmtPct(pct)}</td>`;
+      }
+      return base;
+    }).join('');
+    return `<tr>
+      <td colspan="2" style="padding:7px 10px;">
+        <span style="display:inline-flex;align-items:center;gap:6px;">
+          <span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;"></span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:${color};">${r.cat}</span>
+        </span>
+      </td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  document.getElementById('customContent').innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th colspan="2">Category</th>
+            ${yearHeaders}
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+    ${rows.length === 0 ? '<div class="no-data">No data for selected categories.</div>' : ''}
+  `;
 }
 
 // ═══════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════
 loadState();
+// Reapply any saved category renames to CAT_COLORS so colors survive a refresh
+Object.entries(state.renamedCats).forEach(([orig, renamed]) => {
+  if (CAT_COLORS[orig]) { CAT_COLORS[renamed] = CAT_COLORS[orig]; delete CAT_COLORS[orig]; }
+});
 updateUI();
 updateCustomLabelsList();
 updateExcludedCodesList();
 initItemDetailTypeahead();
+initCustomTypeahead();
+initCustomMatTypeahead();
+
+document.getElementById('newExcludeMaterialInput') && document.getElementById('newExcludeMaterialInput').addEventListener('keydown', e => { if (e.key === 'Enter') addExcludedMaterialCode(); });
+document.getElementById('newAllowedMaterialInput') && document.getElementById('newAllowedMaterialInput').addEventListener('keydown', e => { if (e.key === 'Enter') addAllowedMaterialCode(); });
 
 // Add input listener for new label enter key
 document.getElementById('newLabelInput').addEventListener('keydown', e => { if (e.key === 'Enter') addCustomLabel(); });
@@ -2375,24 +4379,60 @@ function exportPDF(tab) {
     if (srcTable) {
       const headers = [...srcTable.querySelectorAll('thead th')].map(th =>
         `<th>${th.textContent.trim()}</th>`).join('');
-      const rows = [...srcTable.querySelectorAll('tbody tr')].map(tr => {
-        const cells = [...tr.querySelectorAll('td')].map((td, i) => {
-          const t = td.textContent.trim();
-          const cls = i===0?'td-code':'num';
-          return `<td class="${cls}">${t}</td>`;
+      const rows = [...srcTable.querySelectorAll('tbody tr')]
+        .filter(tr => {
+          // Skip rows for excluded years (they have opacity:0.3 style)
+          return tr.style.opacity !== '0.3';
+        })
+        .map(tr => {
+          const cells = [...tr.querySelectorAll('td')].map((td, i) => {
+            // Use only the direct text node (first child), ignoring any sub-line <div>
+            const t = (td.firstChild && td.firstChild.nodeType === 3 ? td.firstChild.textContent : td.textContent).trim();
+            const cls = i===0?'td-code':'num';
+            return `<td class="${cls}">${t}</td>`;
+          }).join('');
+          return `<tr>${cells}</tr>`;
         }).join('');
-        return `<tr>${cells}</tr>`;
-      }).join('');
       tableHTML = `<div class="pdf-section-title">Period Breakdown</div>
         <table class="pdf-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
     }
 
-    const canvases = document.querySelectorAll('#panel-items canvas');
-    if (canvases.length) {
-      chartsHTML = '<div class="pdf-chart-row" style="flex-wrap:wrap;">' + [...canvases].map((c, i) => {
-        const title = c.closest('.chart-card')?.querySelector('.chart-title')?.textContent || `Chart ${i+1}`;
-        try { return `<div class="pdf-chart-box" style="flex:0 0 ${i===0?'100%':'48%'};"><div class="pdf-chart-title">${title}</div><img src="${c.toDataURL('image/png')}"></div>`; } catch(e){ return ''; }
-      }).join('') + '</div>';
+    // Only the first canvas — the year-over-year line chart (reflects excluded years)
+    const firstCanvas = document.querySelector('#panel-items canvas');
+    if (firstCanvas) {
+      const title = firstCanvas.closest('.chart-card')?.querySelector('.chart-title')?.textContent || 'Year Over Year';
+      try { chartsHTML = `<div class="pdf-chart-row"><div class="pdf-chart-box" style="flex:0 0 100%;"><div class="pdf-chart-title">${title}</div><img src="${firstCanvas.toDataURL('image/png')}"></div></div>`; } catch(e){}
+    }
+  }
+
+  // ── CUSTOM COMPARE ──
+  else if (tab === 'custom') {
+    const activePeriodBtn = document.querySelector('#customPeriodSel .period-btn.active');
+    const activeQuarterBtn = document.querySelector('#customQuarterSel .period-btn.active');
+    const periodLabel = activeQuarterBtn
+      ? `Q${activeQuarterBtn.dataset.q}`
+      : (activePeriodBtn && activePeriodBtn.dataset.p !== '0' ? `Period ${activePeriodBtn.dataset.p}` : 'Full Year');
+    titleText = `Custom Item Comparison`;
+    subtitleText = `${customState.years.join(', ')}  ·  ${periodLabel}  ·  ${customState.items.length} items`;
+
+    const srcTable = document.querySelector('#customContent table');
+    if (srcTable) {
+      const headers = [...srcTable.querySelectorAll('thead th')].map((th, i) => {
+        const t = th.textContent.trim();
+        return `<th class="${i>2?'num':''}">${t}</th>`;
+      }).join('');
+      const rows = [...srcTable.querySelectorAll('tbody tr')].map(tr => {
+        const cells = [...tr.querySelectorAll('td')].map((td, i) => {
+          const t = td.textContent.trim();
+          let cls = i===0?'td-code':i===1?'td-desc':i===2?'':'num';
+          if (t.startsWith('+')) cls = 'num pos';
+          else if (t.startsWith('-') && t !== '—') cls = 'num neg';
+          return `<td class="${cls}">${t}</td>`;
+        }).join('');
+        return `<tr>${cells}</tr>`;
+      }).join('');
+      tableHTML = `<div class="pdf-section-title">Item Breakdown</div>
+        <table class="pdf-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
     }
   }
 

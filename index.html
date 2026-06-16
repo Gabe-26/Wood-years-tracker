@@ -589,7 +589,7 @@
     body * { visibility: hidden; }
     #printArea, #printArea * { visibility: visible; }
     #printArea {
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      position: absolute; top: 0; left: 0; width: 100%; height: auto;
       background: #fff; color: #000; z-index: 99999;
     }
   }
@@ -1111,6 +1111,7 @@ const state = {
   cmpActiveCats: [],  // [] = all; otherwise only selected cats shown
   cmpQuarter: 0,      // 0 = none selected, 1-4 = Q1-Q4
   itemDetailExcludedYears: [],
+  itemProfitExcludedYears: [],
   itemDataMode: 'sales',  // 'sales' | 'materials'
   catSelection: new Set(),
   metric: 'qty',      // 'qty' | 'dollars' | 'cogs'
@@ -1959,10 +1960,12 @@ function initItemDetailTypeahead() {
   input.addEventListener('keydown', e => {
     if (e.key === 'Escape') suggestions.style.display = 'none';
     if (e.key === 'Enter') {
-      const first = suggestions.querySelector('.item-suggestion');
-      if (first) first.dispatchEvent(new MouseEvent('mousedown'));
+      const focused = suggestions.querySelector('.item-suggestion.focused');
+      const target = focused || suggestions.querySelector('.item-suggestion');
+      if (target) { e.preventDefault(); target.dispatchEvent(new MouseEvent('mousedown')); }
     }
-    if (e.key === 'ArrowDown') {
+    if (e.key === 'Tab' || e.key === 'ArrowDown') {
+      e.preventDefault();
       const items = [...suggestions.querySelectorAll('.item-suggestion')];
       const focused = suggestions.querySelector('.item-suggestion.focused');
       const idx = focused ? items.indexOf(focused) : -1;
@@ -3145,6 +3148,16 @@ function toggleItemDetailYear(year) {
   renderItemDetailTable();
 }
 
+function toggleProfitYear(year) {
+  const idx = state.itemProfitExcludedYears.indexOf(year);
+  if (idx === -1) state.itemProfitExcludedYears.push(year);
+  else state.itemProfitExcludedYears.splice(idx, 1);
+  const tbody = document.getElementById('itemDetailTbody');
+  if (!tbody) return;
+  const allYearData = JSON.parse(tbody.dataset.yeardata);
+  renderProfitabilitySection(allYearData, 'profitabilitySection');
+}
+
 function renderItemDetailTable() {
   const tbody = document.getElementById('itemDetailTbody');
   if (!tbody) return;
@@ -3247,25 +3260,28 @@ function renderProfitabilitySection(yearData, containerId) {
         </thead>
         <tbody>
           ${rows.map(r => {
+            const excluded = state.itemProfitExcludedYears.includes(r.year);
             const gpClass = r.totGp >= 0 ? 'row-gp-pos' : 'row-gp-neg';
-            const gpCellClass = i => r.gp[i] >= 0 ? 'row-gp-pos' : 'row-gp-neg';
             const marginStr = r.margin !== null ? r.margin.toFixed(1)+'%' : '—';
             const marginColor = r.margin === null ? '' : r.margin >= 40 ? 'color:var(--green)' : r.margin >= 20 ? 'color:var(--purple)' : r.margin >= 0 ? 'color:var(--orange)' : 'color:var(--red)';
+            const fadeStyle = excluded ? 'opacity:0.3;' : '';
             return `
-              <tr class="row-year-header"><td colspan="15" style="text-align:left;">${r.year}</td></tr>
-              <tr>
+              <tr class="row-year-header" data-profit-year="${r.year}" onclick="toggleProfitYear(${r.year})" style="cursor:pointer;" title="Click to show/hide">
+                <td colspan="15" style="text-align:left;">${excluded ? `<span style="text-decoration:line-through;color:var(--text3);">${r.year}</span>` : r.year}</td>
+              </tr>
+              <tr style="${fadeStyle}">
                 <td style="color:var(--text3);padding-left:16px;">Revenue</td>
                 ${r.rev.map(v=>`<td class="row-rev">${v===0?'—':fmtMoney(v)}</td>`).join('')}
                 <td class="row-rev" style="font-weight:600;">${fmtMoney(r.totRev)}</td>
                 <td></td>
               </tr>
-              <tr>
+              <tr style="${fadeStyle}">
                 <td style="color:var(--text3);padding-left:16px;">COGS</td>
                 ${r.cogs.map(v=>`<td class="row-cogs">${v===0?'—':fmtMoney(v)}</td>`).join('')}
                 <td class="row-cogs" style="font-weight:600;">${fmtMoney(r.totCogs)}</td>
                 <td></td>
               </tr>
-              <tr>
+              <tr style="${fadeStyle}">
                 <td style="color:var(--text3);padding-left:16px;">Gross Profit</td>
                 ${r.gp.map((v,i)=>`<td class="${v>=0?'row-gp-pos':'row-gp-neg'}">${v===0?'—':fmtMoney(v)}</td>`).join('')}
                 <td class="${gpClass}" style="font-weight:600;">${fmtMoney(r.totGp)}</td>
@@ -3509,6 +3525,7 @@ function runItemDetail() {
 
   // Reset excluded years and data mode when loading a new item
   state.itemDetailExcludedYears = [];
+  state.itemProfitExcludedYears = [];
   state.itemDataMode = 'sales';
   document.getElementById('itemDataSales').classList.add('active');
   document.getElementById('itemDataMaterials').classList.remove('active');
@@ -3982,6 +3999,32 @@ function initCustomMatTypeahead() {
     });
   });
 
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { suggestions.style.display = 'none'; return; }
+    if (e.key === 'Enter') {
+      const foc = suggestions.querySelector('.item-suggestion.focused');
+      const target = foc || suggestions.querySelector('.item-suggestion');
+      if (target) { e.preventDefault(); target.dispatchEvent(new MouseEvent('mousedown')); }
+    }
+    if (e.key === 'Tab' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const its = [...suggestions.querySelectorAll('.item-suggestion')];
+      const foc = suggestions.querySelector('.item-suggestion.focused');
+      const idx = foc ? its.indexOf(foc) : -1;
+      if (foc) { foc.classList.remove('focused'); foc.style.background = ''; }
+      const nxt = its[idx+1] || its[0];
+      if (nxt) { nxt.classList.add('focused'); nxt.style.background = 'var(--surface3)'; nxt.scrollIntoView({block:'nearest'}); }
+    }
+    if (e.key === 'ArrowUp') {
+      const its = [...suggestions.querySelectorAll('.item-suggestion')];
+      const foc = suggestions.querySelector('.item-suggestion.focused');
+      const idx = foc ? its.indexOf(foc) : its.length;
+      if (foc) { foc.classList.remove('focused'); foc.style.background = ''; }
+      const prv = its[idx-1] || its[its.length-1];
+      if (prv) { prv.classList.add('focused'); prv.style.background = 'var(--surface3)'; prv.scrollIntoView({block:'nearest'}); }
+    }
+  });
+
   document.addEventListener('click', e => {
     if (!e.target.closest('#customMatSuggestions') && e.target.id !== 'customMatSearch') {
       suggestions.style.display = 'none';
@@ -4025,10 +4068,12 @@ function initCustomTypeahead() {
   input.addEventListener('keydown', e => {
     if (e.key === 'Escape') { suggestions.style.display = 'none'; return; }
     if (e.key === 'Enter') {
-      const first = suggestions.querySelector('.item-suggestion');
-      if (first) first.dispatchEvent(new MouseEvent('mousedown'));
+      const foc = suggestions.querySelector('.item-suggestion.focused');
+      const target = foc || suggestions.querySelector('.item-suggestion');
+      if (target) { e.preventDefault(); target.dispatchEvent(new MouseEvent('mousedown')); }
     }
-    if (e.key === 'ArrowDown') {
+    if (e.key === 'Tab' || e.key === 'ArrowDown') {
+      e.preventDefault();
       const its = [...suggestions.querySelectorAll('.item-suggestion')];
       const foc = suggestions.querySelector('.item-suggestion.focused');
       const idx = foc ? its.indexOf(foc) : -1;
@@ -4241,7 +4286,7 @@ function exportPDF(tab) {
   const dateStr = now.toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'});
   const printArea = document.getElementById('printArea');
 
-  let titleText = '', subtitleText = '', statsHTML = '', tableHTML = '', chartsHTML = '';
+  let titleText = '', subtitleText = '', statsHTML = '', tableHTML = '', chartsHTML = '', profitPageHTML = '';
 
   // ── COMPARE ──
   if (tab === 'compare') {
@@ -4403,6 +4448,62 @@ function exportPDF(tab) {
       const title = firstCanvas.closest('.chart-card')?.querySelector('.chart-title')?.textContent || 'Year Over Year';
       try { chartsHTML = `<div class="pdf-chart-row"><div class="pdf-chart-box" style="flex:0 0 100%;"><div class="pdf-chart-title">${title}</div><img src="${firstCanvas.toDataURL('image/png')}"></div></div>`; } catch(e){}
     }
+
+    // Build second page: Cost & Profitability table (no chart)
+    const profitTable = document.querySelector('.profit-table');
+    if (profitTable) {
+      // Serialize the profit table rows into PDF-safe HTML, skipping excluded years
+      const pHeaders = [...profitTable.querySelectorAll('thead th')].map(th =>
+        `<th style="background:#1a1a1a;color:#c8a84b;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;font-size:8px;padding:5px 7px;text-align:${th.style.textAlign||'right'};border:1px solid #333;">${th.textContent.trim()}</th>`
+      ).join('');
+
+      let skipUntilNextYear = false;
+      const pRows = [...profitTable.querySelectorAll('tbody tr')].map(tr => {
+        if (tr.classList.contains('row-year-header')) {
+          const yearVal = parseInt(tr.dataset.profitYear);
+          if (state.itemProfitExcludedYears.includes(yearVal)) {
+            skipUntilNextYear = true;
+            return '';
+          }
+          skipUntilNextYear = false;
+          const t = tr.querySelector('td')?.textContent.trim() || '';
+          return `<tr><td colspan="15" style="background:#222;color:#c8a84b;font-weight:600;font-size:10px;padding:5px 8px;border-top:2px solid #444;text-align:left;">${t}</td></tr>`;
+        }
+        if (skipUntilNextYear) return '';
+        return `<tr>${[...tr.querySelectorAll('td')].map((td, i) => {
+          const t = td.textContent.trim();
+          const isFirst = i === 0;
+          const label = td.textContent.includes('Revenue') || td.classList.contains('row-rev');
+          const isCogs = td.classList.contains('row-cogs');
+          const isGpPos = td.classList.contains('row-gp-pos');
+          const isGpNeg = td.classList.contains('row-gp-neg');
+          const color = isFirst ? '#888' : isGpPos ? '#4caf7d' : isGpNeg ? '#e05c5c' : isCogs ? '#999' : label ? '#5b9bd5' : '#555';
+          const fw = (td.style.fontWeight === '600' || isGpPos || isGpNeg) ? '600' : '400';
+          return `<td style="padding:4px 7px;border-bottom:1px solid #2a2a2a;text-align:${isFirst?'left':'right'};color:${color};font-weight:${fw};font-size:9px;white-space:nowrap;">${t}</td>`;
+        }).join('')}</tr>`;
+      }).join('');
+
+      profitPageHTML = `
+        <div class="pdf-page">
+          <div class="pdf-header">
+            <div>
+              <div class="pdf-logo">AII / WOOD DEPT / SALES ANALYSIS</div>
+              <div class="pdf-title">${titleText}</div>
+              <div class="pdf-subtitle">Cost &amp; Profitability</div>
+            </div>
+            <div class="pdf-meta">Generated: ${dateStr}<br>AII Wood Tracker</div>
+          </div>
+          <div class="pdf-section-title">Cost &amp; Profitability</div>
+          <table style="width:100%;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;">
+            <thead><tr>${pHeaders}</tr></thead>
+            <tbody>${pRows}</tbody>
+          </table>
+          <div class="pdf-footer">
+            <span>AII Wood Department — Sales Analysis &amp; Projections</span>
+            <span>${dateStr}</span>
+          </div>
+        </div>`;
+    }
   }
 
   // ── CUSTOM COMPARE ──
@@ -4459,6 +4560,7 @@ function exportPDF(tab) {
         <span>${dateStr}</span>
       </div>
     </div>
+    ${profitPageHTML}
   `;
 
   setTimeout(() => {
@@ -4467,7 +4569,7 @@ function exportPDF(tab) {
       printArea.style.display = 'none';
       printArea.innerHTML = '';
     }, 1000);
-  }, 150);
+  }, 600);
 }
 
 </script>

@@ -1414,11 +1414,9 @@ function parseIssueCSV(text, filename) {
     if (itemCode === 'Report Total:') continue;
     if (itemCode.startsWith('Total For')) continue;
 
-    // col 24 should be "Prod Line:"
-    if (!cols[24] || cols[24].trim() !== 'Prod Line:') continue;
-
     const description = cols[23] ? cols[23].trim() : '';
-    const prodLine = cols[25] ? cols[25].trim() : '';
+    // col 24 should be "Prod Line:", col 25 the value — read if present, don't skip if absent
+    const prodLine = (cols[24] && cols[24].trim() === 'Prod Line:') ? (cols[25] ? cols[25].trim() : '') : '';
 
     // Quantity Issued at col 46, values at 47-58
     let issued = [0,0,0,0,0,0,0,0,0,0,0,0];

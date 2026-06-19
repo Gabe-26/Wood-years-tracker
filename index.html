@@ -1922,7 +1922,10 @@ function updateItemDetailSelect() {
     });
   });
   _itemDetailAll = [...map.values()]
-    .filter(item => !state.excludedCodes.includes(item.itemCode))
+    .filter(item => {
+      if (item._isMat) return !state.excludedMaterialCodes.includes(item.itemCode);
+      return !state.excludedCodes.includes(item.itemCode);
+    })
     .sort((a, b) => a.itemCode.localeCompare(b.itemCode));
 }
 

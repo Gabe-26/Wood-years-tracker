@@ -3212,10 +3212,9 @@ function toggleProfitYear(year) {
 
 function openProfitDrillModal(btn) {
   const d = JSON.parse(btn.dataset.drill);
-  const periods = Array.from({length:12},(_,i)=>'P'+(i+1));
   const totQty = d.qty.reduce((a,b)=>a+b,0);
 
-  const fmtM  = v => v === 0 ? '—' : '$'+Math.round(v).toLocaleString();
+  const fmtM   = v => v === 0 ? '—' : '$'+Math.round(v).toLocaleString();
   const fmtPct = v => v === null ? '—' : v.toFixed(1)+'%';
   const fmtAvg = v => v === null ? '—' : '$'+v.toFixed(2);
   const pctColor = v => v === null ? 'var(--text3)' : v >= 40 ? 'var(--green)' : v >= 20 ? 'var(--purple)' : v >= 0 ? 'var(--orange)' : 'var(--red)';
@@ -3225,7 +3224,7 @@ function openProfitDrillModal(btn) {
   const summaryHTML = `
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;">
       ${[
-        {label:'Total Revenue', val:fmtM(d.totRev), color:'var(--blue)'},
+        {label:'Total Revenue', val:fmtM(d.totRev),  color:'var(--blue)'},
         {label:'Total COGS',    val:fmtM(d.totCogs), color:'var(--text2)'},
         {label:'Gross Profit',  val:fmtM(d.totGp),   color:d.totGp>=0?'var(--green)':'var(--red)'},
         {label:'GP Margin',     val:d.margin!==null?d.margin.toFixed(1)+'%':'—', color:marginColor},
@@ -3236,64 +3235,86 @@ function openProfitDrillModal(btn) {
         </div>`).join('')}
     </div>`;
 
-  // Per-period breakdown table
-  const rowStyle = 'border-bottom:1px solid var(--border);';
-  const thStyle  = 'padding:8px 10px;text-align:right;font-size:9px;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3);font-family:"IBM Plex Mono",monospace;white-space:nowrap;';
-  const tdBase   = 'padding:9px 10px;text-align:right;font-size:11px;font-family:"IBM Plex Mono",monospace;white-space:nowrap;';
+  // Quarter accent colors
+  const qColors = ['#5b9bd5','#4caf7d','#c8a84b','#9b7fd4'];
 
-  const tableHTML = `
-    <div style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;min-width:600px;">
-        <thead>
-          <tr style="border-bottom:2px solid var(--border2);">
-            <th style="${thStyle}text-align:left;min-width:130px;">Period</th>
-            ${periods.map(p=>`<th style="${thStyle}">${p}</th>`).join('')}
-            <th style="${thStyle}color:var(--accent);">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr style="${rowStyle}">
-            <td style="${tdBase}text-align:left;color:var(--text3);">Revenue</td>
-            ${d.rev.map(v=>`<td style="${tdBase}color:var(--blue);">${fmtM(v)}</td>`).join('')}
-            <td style="${tdBase}color:var(--blue);font-weight:700;">${fmtM(d.totRev)}</td>
-          </tr>
-          <tr style="${rowStyle}">
-            <td style="${tdBase}text-align:left;color:var(--text3);">COGS</td>
-            ${d.cogs.map(v=>`<td style="${tdBase}color:var(--text2);">${fmtM(v)}</td>`).join('')}
-            <td style="${tdBase}color:var(--text2);font-weight:700;">${fmtM(d.totCogs)}</td>
-          </tr>
-          <tr style="${rowStyle}">
-            <td style="${tdBase}text-align:left;color:var(--text3);">Gross Profit</td>
-            ${d.gp.map(v=>`<td style="${tdBase}color:${v>=0?'var(--green)':'var(--red)'};">${fmtM(v)}</td>`).join('')}
-            <td style="${tdBase}color:${d.totGp>=0?'var(--green)':'var(--red)'};font-weight:700;">${fmtM(d.totGp)}</td>
-          </tr>
-          <tr style="${rowStyle}background:var(--surface1);">
-            <td style="${tdBase}text-align:left;color:var(--text3);font-size:9px;text-transform:uppercase;letter-spacing:0.07em;">GP Margin %</td>
-            ${d.rev.map((rv,i)=>{const m=rv>0?((rv-d.cogs[i])/rv*100):null;return`<td style="${tdBase}color:${pctColor(m)};font-weight:600;">${fmtPct(m)}</td>`;}).join('')}
-            <td style="${tdBase}color:${marginColor};font-weight:700;">${fmtPct(d.margin)}</td>
-          </tr>
-          <tr style="${rowStyle}background:var(--surface1);">
-            <td style="${tdBase}text-align:left;color:var(--text3);font-size:9px;text-transform:uppercase;letter-spacing:0.07em;">Qty Sold</td>
-            ${d.qty.map(v=>`<td style="${tdBase}color:var(--text2);">${v===0?'—':v.toLocaleString()}</td>`).join('')}
-            <td style="${tdBase}color:var(--text2);font-weight:700;">${totQty===0?'—':totQty.toLocaleString()}</td>
-          </tr>
-          <tr style="${rowStyle}background:var(--surface1);">
-            <td style="${tdBase}text-align:left;color:var(--text3);font-size:9px;text-transform:uppercase;letter-spacing:0.07em;">Avg Sell / Unit</td>
-            ${d.rev.map((rv,i)=>{const v=d.qty[i]>0?rv/d.qty[i]:null;return`<td style="${tdBase}color:var(--accent);">${fmtAvg(v)}</td>`;}).join('')}
-            <td style="${tdBase}color:var(--accent);font-weight:700;">${fmtAvg(totQty>0?d.totRev/totQty:null)}</td>
-          </tr>
-          <tr style="background:var(--surface1);">
-            <td style="${tdBase}text-align:left;color:var(--text3);font-size:9px;text-transform:uppercase;letter-spacing:0.07em;">Avg COGS / Unit</td>
-            ${d.cogs.map((cg,i)=>{const v=d.qty[i]>0?cg/d.qty[i]:null;return`<td style="${tdBase}color:var(--text2);">${fmtAvg(v)}</td>`;}).join('')}
-            <td style="${tdBase}color:var(--text2);font-weight:700;">${fmtAvg(totQty>0?d.totCogs/totQty:null)}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>`;
+  // Build 4 quarter cards, each with 3 period columns
+  const quartersHTML = Array.from({length:4}, (_, qi) => {
+    const ps = [qi*3, qi*3+1, qi*3+2]; // period indices
+    const qRev  = ps.reduce((s,i)=>s+d.rev[i],0);
+    const qCogs = ps.reduce((s,i)=>s+d.cogs[i],0);
+    const qGp   = qRev - qCogs;
+    const qQty  = ps.reduce((s,i)=>s+d.qty[i],0);
+    const qMargin = qRev > 0 ? (qGp/qRev*100) : null;
+    const qc = qColors[qi];
+
+    const labelStyle = `font-size:9px;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3);font-family:'IBM Plex Mono',monospace;padding:7px 12px 4px;`;
+    const colStyle   = `text-align:right;padding:7px 12px;font-size:11px;font-family:'IBM Plex Mono',monospace;white-space:nowrap;border-top:1px solid var(--border);`;
+    const totStyle   = `text-align:right;padding:7px 12px;font-size:11px;font-family:'IBM Plex Mono',monospace;white-space:nowrap;border-top:1px solid var(--border);background:var(--surface1);font-weight:700;`;
+
+    return `
+      <div style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;overflow:hidden;">
+        <!-- Quarter header -->
+        <div style="background:${qc}18;border-bottom:2px solid ${qc};padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:${qc};">Q${qi+1}</span>
+          <span style="font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--text3);">P${ps[0]+1} · P${ps[1]+1} · P${ps[2]+1}</span>
+          <span style="font-size:11px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:${qMargin!==null?pctColor(qMargin):'var(--text3)'};">${fmtPct(qMargin)}</span>
+        </div>
+        <!-- Period columns table -->
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr>
+              <th style="${labelStyle}text-align:left;"> </th>
+              ${ps.map(i=>`<th style="${labelStyle}text-align:right;">P${i+1}</th>`).join('')}
+              <th style="${labelStyle}text-align:right;color:${qc};">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="${labelStyle}">Revenue</td>
+              ${ps.map(i=>`<td style="${colStyle}color:var(--blue);">${fmtM(d.rev[i])}</td>`).join('')}
+              <td style="${totStyle}color:var(--blue);">${fmtM(qRev)}</td>
+            </tr>
+            <tr>
+              <td style="${labelStyle}">COGS</td>
+              ${ps.map(i=>`<td style="${colStyle}color:var(--text2);">${fmtM(d.cogs[i])}</td>`).join('')}
+              <td style="${totStyle}color:var(--text2);">${fmtM(qCogs)}</td>
+            </tr>
+            <tr>
+              <td style="${labelStyle}">Gross Profit</td>
+              ${ps.map(i=>`<td style="${colStyle}color:${d.gp[i]>=0?'var(--green)':'var(--red)'};">${fmtM(d.gp[i])}</td>`).join('')}
+              <td style="${totStyle}color:${qGp>=0?'var(--green)':'var(--red)'};">${fmtM(qGp)}</td>
+            </tr>
+            <tr style="background:var(--surface1);">
+              <td style="${labelStyle}">GP Margin %</td>
+              ${ps.map(i=>{const m=d.rev[i]>0?(d.gp[i]/d.rev[i]*100):null;return`<td style="${colStyle}color:${pctColor(m)};font-weight:600;">${fmtPct(m)}</td>`;}).join('')}
+              <td style="${totStyle}color:${pctColor(qMargin)};">${fmtPct(qMargin)}</td>
+            </tr>
+            <tr style="background:var(--surface1);">
+              <td style="${labelStyle}">Qty Sold</td>
+              ${ps.map(i=>`<td style="${colStyle}color:var(--text2);">${d.qty[i]===0?'—':d.qty[i].toLocaleString()}</td>`).join('')}
+              <td style="${totStyle}color:var(--text2);">${qQty===0?'—':qQty.toLocaleString()}</td>
+            </tr>
+            <tr style="background:var(--surface1);">
+              <td style="${labelStyle}">Avg Sell / Unit</td>
+              ${ps.map(i=>{const v=d.qty[i]>0?d.rev[i]/d.qty[i]:null;return`<td style="${colStyle}color:var(--accent);">${fmtAvg(v)}</td>`;}).join('')}
+              <td style="${totStyle}color:var(--accent);">${fmtAvg(qQty>0?qRev/qQty:null)}</td>
+            </tr>
+            <tr style="background:var(--surface1);">
+              <td style="${labelStyle}">Avg COGS / Unit</td>
+              ${ps.map(i=>{const v=d.qty[i]>0?d.cogs[i]/d.qty[i]:null;return`<td style="${colStyle}color:var(--text2);">${fmtAvg(v)}</td>`;}).join('')}
+              <td style="${totStyle}color:var(--text2);">${fmtAvg(qQty>0?qCogs/qQty:null)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>`;
+  }).join('');
+
+  const quartersWrap = `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">${quartersHTML}</div>`;
 
   document.getElementById('drillModalTitle').textContent = `${d.year} — Period Breakdown`;
   document.getElementById('drillModalSub').textContent = `Revenue · COGS · Gross Profit · Per-Unit Economics`;
-  document.getElementById('drillModalBody').innerHTML = summaryHTML + tableHTML;
+  document.getElementById('drillModalBody').innerHTML = summaryHTML + quartersWrap;
   const modal = document.getElementById('profitDrillModal');
   modal.style.display = 'flex';
 }

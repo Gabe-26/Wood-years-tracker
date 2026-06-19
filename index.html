@@ -3197,11 +3197,11 @@ function toggleProfitYear(year) {
 }
 
 function toggleProfitDrill(year) {
-  const drillRow = document.querySelector(`.profit-drill-rows[data-drill-year="${year}"]`);
+  const drillRows = document.querySelectorAll(`.profit-drill-rows[data-drill-year="${year}"]`);
   const btn = document.querySelector(`[data-drill-btn="${year}"]`);
-  if (!drillRow) return;
-  const open = drillRow.style.display === 'none' || drillRow.style.display === '';
-  drillRow.style.display = open ? 'table-row' : 'none';
+  if (!drillRows.length) return;
+  const open = drillRows[0].style.display === 'none' || drillRows[0].style.display === '';
+  drillRows.forEach(row => row.style.display = open ? 'table-row' : 'none');
   if (btn) btn.textContent = open ? '▾ DRILL' : '▸ DRILL';
 }
 
@@ -3351,29 +3351,23 @@ function renderProfitabilitySection(yearData, containerId) {
                 <td class="${gpClass}" style="font-weight:600;">${fmtMoney(r.totGp)}</td>
                 <td style="${marginColor};font-weight:600;">${marginStr}</td>
               </tr>
-              <tr class="profit-drill-rows" data-drill-year="${r.year}" style="display:none;">
-                <td colspan="15" style="padding:0;">
-                  <table style="width:100%;border-collapse:collapse;background:var(--surface1);">
-                    <tr>
-                      <td style="padding:4px 8px 4px 24px;font-size:9px;color:#888;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0.07em;min-width:120px;">GP Margin %</td>
-                      ${gpMargins.map(v=>`<td style="padding:4px 6px;text-align:right;font-size:10px;font-family:'IBM Plex Mono',monospace;${pctColor(v)}">${fmtPct(v)}</td>`).join('')}
-                      <td style="padding:4px 6px;text-align:right;font-size:10px;font-family:'IBM Plex Mono',monospace;${marginColor};font-weight:600;">${marginStr}</td>
-                      <td></td>
-                    </tr>
-                    <tr>
-                      <td style="padding:4px 8px 4px 24px;font-size:9px;color:#888;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0.07em;">Avg Sell / Unit</td>
-                      ${avgSell.map(v=>`<td style="padding:4px 6px;text-align:right;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--blue);">${fmtAvg(v)}</td>`).join('')}
-                      <td style="padding:4px 6px;text-align:right;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--blue);font-weight:600;">${fmtAvg(r.totRev > 0 && r.qty.reduce((a,b)=>a+b,0) > 0 ? r.totRev / r.qty.reduce((a,b)=>a+b,0) : null)}</td>
-                      <td></td>
-                    </tr>
-                    <tr style="border-bottom:2px solid #333;">
-                      <td style="padding:4px 8px 6px 24px;font-size:9px;color:#888;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0.07em;">Avg COGS / Unit</td>
-                      ${avgCogs.map(v=>`<td style="padding:4px 6px 6px;text-align:right;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--text2);">${fmtAvg(v)}</td>`).join('')}
-                      <td style="padding:4px 6px 6px;text-align:right;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--text2);font-weight:600;">${fmtAvg(r.totCogs > 0 && r.qty.reduce((a,b)=>a+b,0) > 0 ? r.totCogs / r.qty.reduce((a,b)=>a+b,0) : null)}</td>
-                      <td></td>
-                    </tr>
-                  </table>
-                </td>
+              <tr class="profit-drill-rows" data-drill-year="${r.year}" style="display:none;background:var(--surface1);">
+                <td style="padding:4px 8px 4px 24px;font-size:9px;color:#888;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0.07em;">GP Margin %</td>
+                ${gpMargins.map(v=>`<td style="padding:4px 6px;text-align:right;font-size:10px;font-family:'IBM Plex Mono',monospace;${pctColor(v)}">${fmtPct(v)}</td>`).join('')}
+                <td style="padding:4px 6px;text-align:right;font-size:10px;font-family:'IBM Plex Mono',monospace;${marginColor};font-weight:600;">${marginStr}</td>
+                <td></td>
+              </tr>
+              <tr class="profit-drill-rows" data-drill-year="${r.year}" style="display:none;background:var(--surface1);">
+                <td style="padding:4px 8px 4px 24px;font-size:9px;color:#888;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0.07em;">Avg Sell / Unit</td>
+                ${avgSell.map(v=>`<td style="padding:4px 6px;text-align:right;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--blue);">${fmtAvg(v)}</td>`).join('')}
+                <td style="padding:4px 6px;text-align:right;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--blue);font-weight:600;">${fmtAvg(r.totRev > 0 && r.qty.reduce((a,b)=>a+b,0) > 0 ? r.totRev / r.qty.reduce((a,b)=>a+b,0) : null)}</td>
+                <td></td>
+              </tr>
+              <tr class="profit-drill-rows" data-drill-year="${r.year}" style="display:none;background:var(--surface1);border-bottom:2px solid #333;">
+                <td style="padding:4px 8px 8px 24px;font-size:9px;color:#888;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0.07em;">Avg COGS / Unit</td>
+                ${avgCogs.map(v=>`<td style="padding:4px 6px 8px;text-align:right;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--text2);">${fmtAvg(v)}</td>`).join('')}
+                <td style="padding:4px 6px 8px;text-align:right;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--text2);font-weight:600;">${fmtAvg(r.totCogs > 0 && r.qty.reduce((a,b)=>a+b,0) > 0 ? r.totCogs / r.qty.reduce((a,b)=>a+b,0) : null)}</td>
+                <td></td>
               </tr>`;
           }).join('')}
         </tbody>

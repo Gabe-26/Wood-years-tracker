@@ -1908,7 +1908,22 @@ function toggleCmpCat(cat, color) {
 let _itemDetailAll = [];
 
 function updateItemDetailSelect() {
-  _itemDetailAll = getAllUniqueItems();
+  const map = new Map();
+  // Sales items
+  getSortedYears().forEach(y => {
+    state.years[y].items.forEach(item => {
+      if (!map.has(item.itemCode)) map.set(item.itemCode, { ...item, _isMat: false });
+    });
+  });
+  // Material items (mark as mat so typeahead can style them differently)
+  Object.keys(state.issueYears).forEach(y => {
+    state.issueYears[y].items.forEach(item => {
+      if (!map.has(item.itemCode)) map.set(item.itemCode, { ...item, _isMat: true });
+    });
+  });
+  _itemDetailAll = [...map.values()]
+    .filter(item => !state.excludedCodes.includes(item.itemCode))
+    .sort((a, b) => a.itemCode.localeCompare(b.itemCode));
 }
 
 function initItemDetailTypeahead() {
@@ -1930,12 +1945,13 @@ function initItemDetailTypeahead() {
     suggestions.innerHTML = matches.map(i => {
       const code = i.itemCode;
       const desc = i.description ? ' — ' + i.description.slice(0, 55) : '';
+      const codeColor = i._isMat ? '#4caf7d' : 'var(--accent)';
       return `<div class="item-suggestion" data-code="${code}" style="
         padding:7px 12px;cursor:pointer;font-size:11px;font-family:'IBM Plex Mono',monospace;
         border-bottom:1px solid var(--border);transition:background 0.1s;
         display:flex;gap:8px;align-items:baseline;
       ">
-        <span style="color:var(--accent);font-weight:600;">${code}</span>
+        <span style="color:${codeColor};font-weight:600;">${code}</span>
         <span style="color:var(--text3);font-size:10px;">${desc}</span>
       </div>`;
     }).join('');

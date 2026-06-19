@@ -888,6 +888,10 @@
       <div class="toolbar">
         <div class="toolbar-group" style="position:relative;">
           <span class="toolbar-label">Item</span>
+          <div class="period-selector" style="margin-right:8px;">
+            <div class="period-btn active" id="itemSearchSales" onclick="setItemSearchMode('sales')">SALES</div>
+            <div class="period-btn" id="itemSearchMaterials" onclick="setItemSearchMode('materials')">MATERIALS</div>
+          </div>
           <div style="position:relative;">
             <input type="text" id="itemDetailSearch" placeholder="Type code or description..." style="width:300px;" autocomplete="off">
             <div id="itemDetailSuggestions" style="display:none;position:absolute;top:100%;left:0;width:420px;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;z-index:500;max-height:260px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5);margin-top:2px;"></div>
@@ -1112,6 +1116,7 @@ const state = {
   cmpQuarter: 0,      // 0 = none selected, 1-4 = Q1-Q4
   itemDetailExcludedYears: [],
   itemProfitExcludedYears: [],
+  itemSearchMode: 'sales', // 'sales' | 'materials'
   itemDataMode: 'sales',  // 'sales' | 'materials'
   catSelection: new Set(),
   metric: 'qty',      // 'qty' | 'dollars' | 'cogs'
@@ -1938,7 +1943,10 @@ function initItemDetailTypeahead() {
   input.addEventListener('input', () => {
     const q = input.value.trim().toLowerCase();
     if (!q) { suggestions.style.display = 'none'; return; }
-    const matches = _itemDetailAll.filter(i =>
+    const pool = _itemDetailAll.filter(i =>
+      state.itemSearchMode === 'materials' ? i._isMat : !i._isMat
+    );
+    const matches = pool.filter(i =>
       i.itemCode.toLowerCase().includes(q) ||
       (i.description && i.description.toLowerCase().includes(q))
     ).slice(0, 40);
@@ -1949,7 +1957,7 @@ function initItemDetailTypeahead() {
       const code = i.itemCode;
       const desc = i.description ? ' — ' + i.description.slice(0, 55) : '';
       const codeColor = i._isMat ? '#4caf7d' : 'var(--accent)';
-      return `<div class="item-suggestion" data-code="${code}" style="
+      return `<div class="item-suggestion" data-code="${code}" data-ismat="${i._isMat ? '1' : ''}" style="
         padding:7px 12px;cursor:pointer;font-size:11px;font-family:'IBM Plex Mono',monospace;
         border-bottom:1px solid var(--border);transition:background 0.1s;
         display:flex;gap:8px;align-items:baseline;
@@ -1967,11 +1975,19 @@ function initItemDetailTypeahead() {
       el.addEventListener('mousedown', e => {
         e.preventDefault();
         const code = el.dataset.code;
+        const isMat = el.dataset.ismat === '1';
         hidden.value = code;
         const item = _itemDetailAll.find(i => i.itemCode === code);
         input.value = code + (item && item.description ? ' — ' + item.description.slice(0,55) : '');
         suggestions.style.display = 'none';
-        runItemDetail();
+        // If in materials search mode, go straight to materials view
+        if (isMat && state.itemSearchMode === 'materials') {
+          state.itemDataMode = 'materials';
+          runItemDetailMaterials();
+        } else {
+          state.itemDataMode = 'sales';
+          runItemDetail();
+        }
       });
     });
   });
@@ -3384,6 +3400,19 @@ function setItemDataMode(mode) {
   document.getElementById('itemDataMaterials').classList.toggle('active', mode === 'materials');
   if (mode === 'materials') runItemDetailMaterials();
   else runItemDetail();
+}
+
+function setItemSearchMode(mode) {
+  state.itemSearchMode = mode;
+  document.getElementById('itemSearchSales').classList.toggle('active', mode === 'sales');
+  document.getElementById('itemSearchMaterials').classList.toggle('active', mode === 'materials');
+  // Clear current search and result
+  const input = document.getElementById('itemDetailSearch');
+  const suggestions = document.getElementById('itemDetailSuggestions');
+  input.value = '';
+  suggestions.style.display = 'none';
+  document.getElementById('itemDetailSelect').value = '';
+  document.getElementById('itemDetailContent').innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Select an item</div><div class="empty-sub">Choose any item code to see its full history across all loaded years, with period breakdown and year-over-year chart.</div></div>';
 }
 
 function runItemDetailMaterials() {

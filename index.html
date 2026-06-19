@@ -1911,25 +1911,30 @@ function toggleCmpCat(cat, color) {
 let _itemDetailAll = [];
 
 function updateItemDetailSelect() {
-  const map = new Map();
-  // Sales items
+  const salesMap = new Map();
   getSortedYears().forEach(y => {
     state.years[y].items.forEach(item => {
-      if (!map.has(item.itemCode)) map.set(item.itemCode, { ...item, _isMat: false });
+      if (!salesMap.has(item.itemCode)) salesMap.set(item.itemCode, { ...item, _isMat: false });
     });
   });
-  // Material items (mark as mat so typeahead can style them differently)
+
+  const matMap = new Map();
   Object.keys(state.issueYears).forEach(y => {
     state.issueYears[y].items.forEach(item => {
-      if (!map.has(item.itemCode)) map.set(item.itemCode, { ...item, _isMat: true });
+      if (!matMap.has(item.itemCode)) matMap.set(item.itemCode, { ...item, _isMat: true });
     });
   });
-  _itemDetailAll = [...map.values()]
-    .filter(item => {
-      if (item._isMat) return !state.excludedMaterialCodes.includes(item.itemCode);
-      return !state.excludedCodes.includes(item.itemCode);
-    })
-    .sort((a, b) => a.itemCode.localeCompare(b.itemCode));
+
+  const salesItems = [...salesMap.values()]
+    .filter(item => !state.excludedCodes.includes(item.itemCode));
+  const matItems = [...matMap.values()]
+    .filter(item => !state.excludedMaterialCodes.includes(item.itemCode));
+
+  // Store both pools; typeahead filters by search mode
+  _itemDetailAll = [
+    ...salesItems,
+    ...matItems,
+  ].sort((a, b) => a.itemCode.localeCompare(b.itemCode));
 }
 
 function initItemDetailTypeahead() {

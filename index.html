@@ -3225,16 +3225,16 @@ function openProfitDrillModal(btn) {
 
   // Summary cards
   const summaryHTML = `
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;">
       ${[
         {label:'Total Revenue', val:fmtM(d.totRev),  color:'var(--blue)'},
         {label:'Total COGS',    val:fmtM(d.totCogs), color:'var(--text2)'},
         {label:'Gross Profit',  val:fmtM(d.totGp),   color:d.totGp>=0?'var(--green)':'var(--red)'},
         {label:'GP Margin',     val:d.margin!==null?d.margin.toFixed(1)+'%':'—', color:marginColor},
       ].map(c=>`
-        <div style="background:var(--surface3);border-radius:6px;padding:14px 16px;border:1px solid var(--border);">
-          <div style="font-size:9px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-bottom:6px;">${c.label}</div>
-          <div style="font-size:18px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:${c.color};">${c.val}</div>
+        <div style="background:var(--surface3);border-radius:6px;padding:10px 14px;border:1px solid var(--border);">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-bottom:4px;">${c.label}</div>
+          <div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:${c.color};">${c.val}</div>
         </div>`).join('')}
     </div>`;
 
@@ -3251,14 +3251,14 @@ function openProfitDrillModal(btn) {
     const qMargin = qRev > 0 ? (qGp/qRev*100) : null;
     const qc = qColors[qi];
 
-    const labelStyle = `font-size:9px;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3);font-family:'IBM Plex Mono',monospace;padding:7px 12px 4px;`;
-    const colStyle   = `text-align:right;padding:7px 12px;font-size:11px;font-family:'IBM Plex Mono',monospace;white-space:nowrap;border-top:1px solid var(--border);`;
-    const totStyle   = `text-align:right;padding:7px 12px;font-size:11px;font-family:'IBM Plex Mono',monospace;white-space:nowrap;border-top:1px solid var(--border);background:var(--surface1);font-weight:700;`;
+    const labelStyle = `font-size:9px;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3);font-family:'IBM Plex Mono',monospace;padding:4px 12px 3px;`;
+    const colStyle   = `text-align:right;padding:4px 12px;font-size:11px;font-family:'IBM Plex Mono',monospace;white-space:nowrap;border-top:1px solid var(--border);`;
+    const totStyle   = `text-align:right;padding:4px 12px;font-size:11px;font-family:'IBM Plex Mono',monospace;white-space:nowrap;border-top:1px solid var(--border);background:var(--surface1);font-weight:700;`;
 
     return `
       <div style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;overflow:hidden;">
         <!-- Quarter header -->
-        <div style="background:${qc}18;border-bottom:2px solid ${qc};padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+        <div style="background:${qc}18;border-bottom:2px solid ${qc};padding:7px 14px;display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:12px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:${qc};">Q${qi+1}</span>
           <span style="font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--text3);">P${ps[0]+1} · P${ps[1]+1} · P${ps[2]+1}</span>
           <span style="font-size:11px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:${qMargin!==null?pctColor(qMargin):'var(--text3)'};">${fmtPct(qMargin)}</span>
@@ -3313,7 +3313,7 @@ function openProfitDrillModal(btn) {
       </div>`;
   }).join('');
 
-  const quartersWrap = `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">${quartersHTML}</div>`;
+  const quartersWrap = `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">${quartersHTML}</div>`;
 
   document.getElementById('drillModalTitle').textContent = `${d.year} — Period Breakdown`;
   document.getElementById('drillModalSub').textContent = `Revenue · COGS · Gross Profit · Per-Unit Economics`;

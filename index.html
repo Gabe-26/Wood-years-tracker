@@ -3196,6 +3196,15 @@ function toggleProfitYear(year) {
   renderProfitabilitySection(allYearData, 'profitabilitySection');
 }
 
+function toggleProfitDrill(year) {
+  const drillRow = document.querySelector(`.profit-drill-rows[data-drill-year="${year}"]`);
+  const btn = document.querySelector(`[data-drill-btn="${year}"]`);
+  if (!drillRow) return;
+  const open = drillRow.style.display === 'none' || drillRow.style.display === '';
+  drillRow.style.display = open ? 'table-row' : 'none';
+  if (btn) btn.textContent = open ? '▾ DRILL' : '▸ DRILL';
+}
+
 function renderItemDetailTable() {
   const tbody = document.getElementById('itemDetailTbody');
   if (!tbody) return;
@@ -3275,12 +3284,13 @@ function renderProfitabilitySection(yearData, containerId) {
   const rows = yearData.map(yd => {
     const rev   = (yd.dollars || Array(12).fill(0));
     const cogs  = (yd.cogs    || Array(12).fill(0));
+    const qty   = (yd.periods || Array(12).fill(0));
     const gp    = rev.map((r,i) => r - cogs[i]);
     const totRev  = rev.reduce((a,b)=>a+b,0);
     const totCogs = cogs.reduce((a,b)=>a+b,0);
     const totGp   = totRev - totCogs;
     const margin  = totRev > 0 ? (totGp / totRev * 100) : null;
-    return { year: yd.year, rev, cogs, gp, totRev, totCogs, totGp, margin };
+    return { year: yd.year, rev, cogs, gp, qty, totRev, totCogs, totGp, margin };
   });
 
   const pCols = Array.from({length:12},(_,i)=>'P'+(i+1));
@@ -3290,7 +3300,7 @@ function renderProfitabilitySection(yearData, containerId) {
       <table class="profit-table">
         <thead>
           <tr>
-            <th style="text-align:left;min-width:80px;">Year / Metric</th>
+            <th style="text-align:left;min-width:120px;">Year / Metric</th>
             ${pCols.map(p=>`<th>${p}</th>`).join('')}
             <th>Total</th>
             <th>Margin%</th>
@@ -3303,9 +3313,25 @@ function renderProfitabilitySection(yearData, containerId) {
             const marginStr = r.margin !== null ? r.margin.toFixed(1)+'%' : '—';
             const marginColor = r.margin === null ? '' : r.margin >= 40 ? 'color:var(--green)' : r.margin >= 20 ? 'color:var(--purple)' : r.margin >= 0 ? 'color:var(--orange)' : 'color:var(--red)';
             const fadeStyle = excluded ? 'opacity:0.3;' : '';
+
+            // Per-period drill-down metrics
+            const gpMargins = r.rev.map((rv,i) => rv > 0 ? ((rv - r.cogs[i]) / rv * 100) : null);
+            const avgSell   = r.rev.map((rv,i) => r.qty[i] > 0 ? rv / r.qty[i] : null);
+            const avgCogs   = r.cogs.map((cg,i) => r.qty[i] > 0 ? cg / r.qty[i] : null);
+
+            const fmtPct  = v => v === null ? '—' : v.toFixed(1)+'%';
+            const fmtAvg  = v => v === null ? '—' : '$'+v.toFixed(2);
+            const pctColor = v => v === null ? '' : v >= 40 ? 'color:var(--green)' : v >= 20 ? 'color:var(--purple)' : v >= 0 ? 'color:var(--orange)' : 'color:var(--red)';
+
             return `
               <tr class="row-year-header" data-profit-year="${r.year}" onclick="toggleProfitYear(${r.year})" style="cursor:pointer;" title="Click to show/hide">
-                <td colspan="15" style="text-align:left;">${excluded ? `<span style="text-decoration:line-through;color:var(--text3);">${r.year}</span>` : r.year}</td>
+                <td colspan="15" style="text-align:left;">
+                  <span style="${excluded ? 'text-decoration:line-through;color:var(--text3);' : ''}">${r.year}</span>
+                  <button onclick="event.stopPropagation();toggleProfitDrill(${r.year})" data-drill-btn="${r.year}"
+                    style="margin-left:10px;padding:1px 7px;font-size:9px;font-family:'IBM Plex Mono',monospace;
+                    background:transparent;border:1px solid #444;color:#888;border-radius:3px;cursor:pointer;
+                    letter-spacing:0.05em;" title="Expand per-period breakdown">▸ DRILL</button>
+                </td>
               </tr>
               <tr style="${fadeStyle}">
                 <td style="color:var(--text3);padding-left:16px;">Revenue</td>
@@ -3324,6 +3350,30 @@ function renderProfitabilitySection(yearData, containerId) {
                 ${r.gp.map((v,i)=>`<td class="${v>=0?'row-gp-pos':'row-gp-neg'}">${v===0?'—':fmtMoney(v)}</td>`).join('')}
                 <td class="${gpClass}" style="font-weight:600;">${fmtMoney(r.totGp)}</td>
                 <td style="${marginColor};font-weight:600;">${marginStr}</td>
+              </tr>
+              <tr class="profit-drill-rows" data-drill-year="${r.year}" style="display:none;">
+                <td colspan="15" style="padding:0;">
+                  <table style="width:100%;border-collapse:collapse;background:var(--surface1);">
+                    <tr>
+                      <td style="padding:4px 8px 4px 24px;font-size:9px;color:#888;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0.07em;min-width:120px;">GP Margin %</td>
+                      ${gpMargins.map(v=>`<td style="padding:4px 6px;text-align:right;font-size:10px;font-family:'IBM Plex Mono',monospace;${pctColor(v)}">${fmtPct(v)}</td>`).join('')}
+                      <td style="padding:4px 6px;text-align:right;font-size:10px;font-family:'IBM Plex Mono',monospace;${marginColor};font-weight:600;">${marginStr}</td>
+                      <td></td>
+                    </tr>
+                    <tr>
+                      <td style="padding:4px 8px 4px 24px;font-size:9px;color:#888;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0.07em;">Avg Sell / Unit</td>
+                      ${avgSell.map(v=>`<td style="padding:4px 6px;text-align:right;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--blue);">${fmtAvg(v)}</td>`).join('')}
+                      <td style="padding:4px 6px;text-align:right;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--blue);font-weight:600;">${fmtAvg(r.totRev > 0 && r.qty.reduce((a,b)=>a+b,0) > 0 ? r.totRev / r.qty.reduce((a,b)=>a+b,0) : null)}</td>
+                      <td></td>
+                    </tr>
+                    <tr style="border-bottom:2px solid #333;">
+                      <td style="padding:4px 8px 6px 24px;font-size:9px;color:#888;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0.07em;">Avg COGS / Unit</td>
+                      ${avgCogs.map(v=>`<td style="padding:4px 6px 6px;text-align:right;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--text2);">${fmtAvg(v)}</td>`).join('')}
+                      <td style="padding:4px 6px 6px;text-align:right;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--text2);font-weight:600;">${fmtAvg(r.totCogs > 0 && r.qty.reduce((a,b)=>a+b,0) > 0 ? r.totCogs / r.qty.reduce((a,b)=>a+b,0) : null)}</td>
+                      <td></td>
+                    </tr>
+                  </table>
+                </td>
               </tr>`;
           }).join('')}
         </tbody>

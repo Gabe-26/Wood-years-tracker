@@ -1060,6 +1060,10 @@
               <option value="50000">$50,000+</option>
             </select>
           </div>
+          <div class="toolbar-group">
+            <span class="toolbar-label">Search</span>
+            <input type="text" id="marginSearch" placeholder="Code or description…" style="width:200px;" oninput="runMarginRankings()" onkeydown="if(event.key==='Escape'){this.value='';runMarginRankings();}">
+          </div>
           <div class="flex-grow"></div>
           <button class="btn-sm accent" onclick="runMarginRankings()">RUN</button>
           <button class="btn-sm" onclick="exportPDF('margins')" title="Export to PDF">⬇ PDF</button>
@@ -3996,6 +4000,15 @@ function runMarginRankings() {
   // Category filter
   if (state.marginActiveCats.length > 0) {
     rows = rows.filter(r => state.marginActiveCats.includes(r.cat));
+  }
+
+  // Search filter
+  const searchQ = (document.getElementById('marginSearch')?.value || '').trim().toLowerCase();
+  if (searchQ) {
+    rows = rows.filter(r =>
+      r.itemCode.toLowerCase().includes(searchQ) ||
+      r.description.toLowerCase().includes(searchQ)
+    );
   }
 
   // Sort

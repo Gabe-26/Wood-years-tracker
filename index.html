@@ -742,6 +742,7 @@
       <div class="tab" data-tab="projections">PROJECTIONS</div>
       <div class="tab" data-tab="items">ITEM DETAIL</div>
       <div class="tab" data-tab="custom">CUSTOM</div>
+      <div class="tab" data-tab="margins">MARGINS</div>
       <div class="tab" data-tab="manage">MANAGE</div>
     </div>
 
@@ -1042,6 +1043,39 @@
     <!-- ═══════════════════════════════════
          MANAGE TAB
     ═══════════════════════════════════ -->
+    <div class="panel" id="panel-margins">
+      <div class="toolbar" style="flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;align-items:center;gap:10px;width:100%;flex-wrap:wrap;">
+          <div class="toolbar-group">
+            <span class="toolbar-label">Year</span>
+            <select id="marginYear" style="width:90px;" onchange="runMarginRankings()"></select>
+          </div>
+          <div class="toolbar-group">
+            <span class="toolbar-label">Min Revenue</span>
+            <select id="marginMinRev" style="width:100px;" onchange="runMarginRankings()">
+              <option value="0">Any</option>
+              <option value="1000">$1,000+</option>
+              <option value="5000">$5,000+</option>
+              <option value="10000">$10,000+</option>
+              <option value="50000">$50,000+</option>
+            </select>
+          </div>
+          <div class="flex-grow"></div>
+          <button class="btn-sm accent" onclick="runMarginRankings()">RUN</button>
+          <button class="btn-sm" onclick="exportPDF('margins')" title="Export to PDF">⬇ PDF</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;width:100%;flex-wrap:wrap;padding-top:2px;border-top:1px solid var(--border);">
+          <span class="toolbar-label" style="white-space:nowrap;">Categories</span>
+          <div id="marginCatFilter" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+          <span style="color:var(--text3);font-size:10px;font-family:'IBM Plex Mono',monospace;margin-left:4px;" id="marginCatHint">all</span>
+        </div>
+      </div>
+      <div class="panel-scroll">
+        <div id="marginStats" style="display:none;gap:12px;flex-wrap:wrap;margin-bottom:16px;" class="stats-row"></div>
+        <div id="marginContent"><div class="empty-state"><div class="empty-icon">📊</div><div class="empty-title">Margin Rankings</div><div class="empty-sub">Select a year above to rank all items by gross profit margin.</div></div></div>
+      </div>
+    </div>
+
     <div class="panel" id="panel-manage">
       <div id="manageBulkBar" class="bulk-action-bar" style="display:none;"></div>
       <div class="panel-scroll">
@@ -1141,7 +1175,8 @@ const state = {
   sortDir: 'asc',
   activeFilter: { cat: '', search: '', prodLine: '' },
   activeCatDropdown: null,
-  renamedCats: {},        // { 'Original Name': 'New Name' }
+  renamedCats: {},
+  marginActiveCats: [],        // { 'Original Name': 'New Name' }
   cmpMode: 'sales',       // 'sales' | 'materials'
   issueYears: {},         // { 2025: { items: [...] } }
   excludedMaterialCodes: [],
@@ -1534,6 +1569,8 @@ function updateUI() {
   updateMatManageLegend();
   updateMatCatFilter();
   updateAllowedMaterialCodesList();
+  updateMarginYearSel();
+  updateMarginCatFilter();
 }
 
 function getSortedYears() {
@@ -2310,6 +2347,7 @@ function refreshCurrentPanel() {
   else if (tab === 'trends') runTrends();
   else if (tab === 'projections') runProjections();
   else if (tab === 'items') runItemDetail();
+  else if (tab === 'margins') runMarginRankings();
 }
 
 // ═══════════════════════════════════════════════
@@ -3315,8 +3353,8 @@ function openProfitDrillModal(btn) {
 
   const quartersWrap = `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">${quartersHTML}</div>`;
 
-  document.getElementById('drillModalTitle').textContent = `${d.year} — Period Breakdown`;
-  document.getElementById('drillModalSub').textContent = `Revenue · COGS · Gross Profit · Per-Unit Economics`;
+  document.getElementById('drillModalTitle').textContent = d.label || `${d.year} — Period Breakdown`;
+  document.getElementById('drillModalSub').textContent = d.sublabel || `Revenue · COGS · Gross Profit · Per-Unit Economics`;
   document.getElementById('drillModalBody').innerHTML = summaryHTML + quartersWrap;
   const modal = document.getElementById('profitDrillModal');
   modal.style.display = 'flex';
@@ -3872,6 +3910,187 @@ function runItemDetail() {
   });
 
   renderProfitabilitySection(yearData, 'profitabilitySection');
+}
+
+// ═══════════════════════════════════════════════
+// MARGINS TAB
+// ═══════════════════════════════════════════════
+const marginSortState = { col: 'margin', dir: 'desc' };
+
+function updateMarginYearSel() {
+  const el = document.getElementById('marginYear');
+  if (!el) return;
+  const years = getSortedYears();
+  const cur = el.value;
+  el.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+  if (cur && years.includes(parseInt(cur))) el.value = cur;
+  else if (years.length) el.value = years[years.length - 1];
+}
+
+function updateMarginCatFilter() {
+  const el = document.getElementById('marginCatFilter');
+  if (!el) return;
+  const cats = getAllCategories();
+  el.innerHTML = cats.map(cat => {
+    const active = state.marginActiveCats.includes(cat);
+    const color = getCatColor(cat);
+    return `<div class="period-btn ${active ? 'active' : ''}" data-cat="${cat}"
+      style="${active ? `background:${color};border-color:${color};color:#000;` : `border-color:${color}44;color:${color};`}"
+      onclick="toggleMarginCat('${cat}')">${cat}</div>`;
+  }).join('');
+  const hint = document.getElementById('marginCatHint');
+  if (hint) hint.textContent = state.marginActiveCats.length === 0 ? 'all' : state.marginActiveCats.join(', ');
+}
+
+function toggleMarginCat(cat) {
+  const idx = state.marginActiveCats.indexOf(cat);
+  if (idx === -1) state.marginActiveCats.push(cat);
+  else state.marginActiveCats.splice(idx, 1);
+  updateMarginCatFilter();
+  runMarginRankings();
+}
+
+function sortMarginTable(col) {
+  if (marginSortState.col === col) marginSortState.dir = marginSortState.dir === 'asc' ? 'desc' : 'asc';
+  else { marginSortState.col = col; marginSortState.dir = col === 'margin' || col === 'rev' || col === 'gp' ? 'desc' : 'asc'; }
+  runMarginRankings();
+}
+
+function marginTierColor(margin) {
+  if (margin === null) return 'var(--text3)';
+  if (margin >= 40) return 'var(--green)';
+  if (margin >= 20) return 'var(--purple)';
+  if (margin >= 0)  return 'var(--orange)';
+  return 'var(--red)';
+}
+
+function runMarginRankings() {
+  const year = parseInt(document.getElementById('marginYear')?.value);
+  const minRev = parseFloat(document.getElementById('marginMinRev')?.value || 0);
+
+  if (!year || !state.years[year]) {
+    document.getElementById('marginContent').innerHTML = '<div class="empty-state"><div class="empty-icon">📂</div><div class="empty-title">No data for this year</div><div class="empty-sub">Load a CSV for the selected year first.</div></div>';
+    document.getElementById('marginStats').style.display = 'none';
+    return;
+  }
+
+  const yearItems = state.years[year].items;
+
+  let rows = yearItems
+    .filter(item => !state.excludedCodes.includes(item.itemCode))
+    .map(item => {
+      const cat = getEffectiveCat(item.itemCode, item) || 'Other';
+      const revArr  = item.dollars || Array(12).fill(0);
+      const cogsArr = item.cogs    || Array(12).fill(0);
+      const qtyArr  = item.periods || Array(12).fill(0);
+      const rev  = revArr.reduce((a,b)=>a+b,0);
+      const cogs = cogsArr.reduce((a,b)=>a+b,0);
+      const gp   = rev - cogs;
+      const margin = rev > 0 ? (gp / rev * 100) : null;
+      const qty  = qtyArr.reduce((a,b)=>a+b,0);
+      return { itemCode: item.itemCode, description: item.description||'', cat,
+               revArr, cogsArr, qtyArr, rev, cogs, gp, margin, qty };
+    })
+    .filter(r => r.rev >= minRev);
+
+  // Category filter
+  if (state.marginActiveCats.length > 0) {
+    rows = rows.filter(r => state.marginActiveCats.includes(r.cat));
+  }
+
+  // Sort
+  const { col, dir } = marginSortState;
+  rows.sort((a, b) => {
+    let va = a[col], vb = b[col];
+    if (va === null) va = dir === 'desc' ? -Infinity : Infinity;
+    if (vb === null) vb = dir === 'desc' ? -Infinity : Infinity;
+    return dir === 'desc' ? vb - va : va - vb;
+  });
+
+  if (!rows.length) {
+    document.getElementById('marginContent').innerHTML = '<div class="no-data">No items match current filters.</div>';
+    document.getElementById('marginStats').style.display = 'none';
+    return;
+  }
+
+  // Summary stats
+  const totRev  = rows.reduce((s,r)=>s+r.rev,0);
+  const totCogs = rows.reduce((s,r)=>s+r.cogs,0);
+  const totGp   = totRev - totCogs;
+  const blended = totRev > 0 ? (totGp / totRev * 100) : null;
+  const statsEl = document.getElementById('marginStats');
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = `
+    <div class="stat-card"><div class="stat-label">Items</div><div class="stat-value">${rows.length}</div><div class="stat-sub">ranked</div></div>
+    <div class="stat-card"><div class="stat-label">Total Revenue</div><div class="stat-value" style="color:var(--blue);">${fmtMoney(totRev)}</div><div class="stat-sub">${year}</div></div>
+    <div class="stat-card"><div class="stat-label">Total COGS</div><div class="stat-value">${fmtMoney(totCogs)}</div><div class="stat-sub">${year}</div></div>
+    <div class="stat-card"><div class="stat-label">Gross Profit</div><div class="stat-value" style="color:${totGp>=0?'var(--green)':'var(--red)'};">${fmtMoney(totGp)}</div><div class="stat-sub">${year}</div></div>
+    <div class="stat-card"><div class="stat-label">Blended Margin</div><div class="stat-value" style="color:${marginTierColor(blended)};font-size:22px;">${blended!==null?blended.toFixed(1)+'%':'—'}</div><div class="stat-sub">all items</div></div>
+  `;
+
+  const thS = col => {
+    const arrow = marginSortState.col === col ? (marginSortState.dir === 'desc' ? ' ▼' : ' ▲') : '';
+    return `onclick="sortMarginTable('${col}')" style="cursor:pointer;text-align:right;user-select:none;" class="${marginSortState.col===col?'sorted-'+marginSortState.dir:''}"`;
+  };
+
+  document.getElementById('marginContent').innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:30px;text-align:right;color:var(--text3);">#</th>
+            <th ${thS('itemCode').replace('text-align:right','text-align:left')} onclick="sortMarginTable('itemCode')" style="cursor:pointer;text-align:left;user-select:none;">Item Code</th>
+            <th style="text-align:left;">Description</th>
+            <th style="text-align:left;">Category</th>
+            <th ${thS('rev')}>Revenue</th>
+            <th ${thS('cogs')}>COGS</th>
+            <th ${thS('gp')}>Gross Profit</th>
+            <th ${thS('qty')}>Qty</th>
+            <th ${thS('margin')} style="cursor:pointer;text-align:right;user-select:none;min-width:80px;">Margin %</th>
+            <th style="text-align:center;width:60px;">Detail</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((r, i) => {
+            const color = getCatColor(r.cat);
+            const mColor = marginTierColor(r.margin);
+            const gpColor = r.gp >= 0 ? 'var(--green)' : 'var(--red)';
+            const drillData = JSON.stringify({
+              label: `${r.itemCode} — ${year}`,
+              sublabel: r.description,
+              year, rev: r.revArr, cogs: r.cogsArr,
+              gp: r.revArr.map((v,pi) => v - r.cogsArr[pi]),
+              qty: r.qtyArr,
+              totRev: r.rev, totCogs: r.cogs, totGp: r.gp, margin: r.margin
+            }).replace(/'/g, '&#39;');
+            return `<tr style="cursor:pointer;" onclick="openMarginRowDrill(this)" data-drill='${drillData}'>
+              <td style="text-align:right;color:var(--text3);font-size:10px;">${i+1}</td>
+              <td class="td-code">${r.itemCode}</td>
+              <td class="td-desc" title="${r.description}">${r.description || '—'}</td>
+              <td><span class="cat-badge" style="background:${color}22;color:${color};border-color:${color}44;">${r.cat}</span></td>
+              <td class="td-num" style="color:var(--blue);">${fmtMoney(r.rev)}</td>
+              <td class="td-num">${fmtMoney(r.cogs)}</td>
+              <td class="td-num" style="color:${gpColor};font-weight:600;">${fmtMoney(r.gp)}</td>
+              <td class="td-num">${fmt(r.qty)}</td>
+              <td class="td-num" style="color:${mColor};font-weight:700;font-size:13px;">${r.margin!==null?r.margin.toFixed(1)+'%':'—'}</td>
+              <td style="text-align:center;">
+                <button onclick="event.stopPropagation();openMarginRowDrill(this.closest('tr'))"
+                  style="padding:2px 8px;font-size:9px;font-family:'IBM Plex Mono',monospace;
+                  background:transparent;border:1px solid #444;color:#888;border-radius:3px;cursor:pointer;">
+                  ▸ DETAIL
+                </button>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function openMarginRowDrill(row) {
+  const btn = { dataset: { drill: row.dataset.drill } };
+  openProfitDrillModal(btn);
 }
 
 // ═══════════════════════════════════════════════
@@ -4740,6 +4959,43 @@ function exportPDF(tab) {
             <span>${dateStr}</span>
           </div>
         </div>`;
+    }
+  }
+
+  // ── MARGINS ──
+  else if (tab === 'margins') {
+    const year = document.getElementById('marginYear')?.value || '';
+    titleText = `Margin Rankings — ${year}`;
+    const minRev = document.getElementById('marginMinRev')?.value || '0';
+    const minRevLabel = minRev === '0' ? 'All Items' : `Min Revenue $${parseInt(minRev).toLocaleString()}+`;
+    subtitleText = `${year}  ·  ${minRevLabel}  ·  ${state.marginActiveCats.length ? state.marginActiveCats.join(', ') : 'All Categories'}`;
+
+    const srcTable = document.querySelector('#marginContent table');
+    if (srcTable) {
+      const headers = [...srcTable.querySelectorAll('thead th')].map((th, i) => {
+        const t = th.textContent.trim();
+        const align = (i <= 2) ? '' : 'num';
+        return `<th class="${align}">${t}</th>`;
+      }).join('');
+      const rows = [...srcTable.querySelectorAll('tbody tr')].map(tr => {
+        const cells = [...tr.querySelectorAll('td')].map((td, i) => {
+          const t = td.textContent.trim();
+          const cls = i <= 2 ? (i === 0 ? '' : i === 1 ? 'td-code' : 'td-desc') : 'num';
+          return `<td class="${cls}">${t}</td>`;
+        }).join('');
+        return `<tr>${cells}</tr>`;
+      }).join('');
+      tableHTML = `<div class="pdf-section-title">Item Margin Rankings</div>
+        <table class="pdf-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+    }
+
+    const statsEl = document.getElementById('marginStats');
+    if (statsEl && statsEl.style.display !== 'none') {
+      statsHTML = [...statsEl.querySelectorAll('.stat-card')].map(c => {
+        const label = c.querySelector('.stat-label')?.textContent || '';
+        const val   = c.querySelector('.stat-value')?.textContent || '';
+        return `<div class="pdf-stat"><div class="pdf-stat-label">${label}</div><div class="pdf-stat-value">${val}</div></div>`;
+      }).join('');
     }
   }
 

@@ -4886,8 +4886,11 @@ function exportPDF(tab) {
   else if (tab === 'items') {
     const code = document.getElementById('itemDetailSelect').value;
     const searchVal = document.getElementById('itemDetailSearch').value;
-    titleText = `Item Detail — ${code || searchVal}`;
-    subtitleText = `All loaded years: ${getSortedYears().join(', ')}`;
+    const itemEntry = _itemDetailAll.find(i => i.itemCode === code);
+    const itemDesc = itemEntry?.description || '';
+    const metricLabel = { qty: 'QTY', dollars: '$', cogs: 'COGS', profit: 'GP' }[state.metric] || 'QTY';
+    titleText = `Item Detail — ${code || searchVal}  [${metricLabel}]`;
+    subtitleText = [itemDesc, `Years: ${getSortedYears().join(', ')}`].filter(Boolean).join('  ·  ');
 
     const srcTable = document.querySelector('#itemDetailContent table');
     if (srcTable) {
@@ -4907,7 +4910,7 @@ function exportPDF(tab) {
           }).join('');
           return `<tr>${cells}</tr>`;
         }).join('');
-      tableHTML = `<div class="pdf-section-title">Period Breakdown</div>
+      tableHTML = `<div class="pdf-section-title">Period Breakdown — ${metricLabel}</div>
         <table class="pdf-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
     }
 

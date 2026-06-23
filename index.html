@@ -1659,24 +1659,38 @@ function updateYearSelects(years) {
 }
 
 function updatePeriodSelectors() {
-  ['cmpPeriodSel','trendPeriodSel','customPeriodSel'].forEach(id => {
+  // Trends: single-select (unchanged)
+  const trendEl = document.getElementById('trendPeriodSel');
+  if (trendEl) {
+    trendEl.innerHTML = Array.from({length:12},(_,i)=>`<div class="period-btn${i===0?' active':''}" data-p="${i+1}">P${i+1}</div>`).join('');
+    trendEl.querySelectorAll('.period-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        trendEl.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+  }
+  // Compare & Custom: multi-select toggle
+  ['cmpPeriodSel','customPeriodSel'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
-    const hasAll = id === 'cmpPeriodSel' || id === 'customPeriodSel';
-    el.innerHTML = (hasAll ? '<div class="period-btn active" data-p="0">ALL</div>' : '') +
-      Array.from({length:12},(_,i)=>`<div class="period-btn${id==='trendPeriodSel'&&i===0?' active':''}" data-p="${i+1}">P${i+1}</div>`).join('');
+    const quartSelId = id === 'cmpPeriodSel' ? 'cmpQuarterSel' : 'customQuarterSel';
+    el.innerHTML = '<div class="period-btn active" data-p="0">ALL</div>' +
+      Array.from({length:12},(_,i)=>`<div class="period-btn" data-p="${i+1}">P${i+1}</div>`).join('');
+    const allBtn = el.querySelector('.period-btn[data-p="0"]');
     el.querySelectorAll('.period-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        el.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        if (id === 'cmpPeriodSel') {
-          state.cmpQuarter = 0;
-          document.querySelectorAll('#cmpQuarterSel .period-btn').forEach(b => b.classList.remove('active'));
+        const p = parseInt(btn.dataset.p);
+        if (p === 0) {
+          el.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+          allBtn.classList.add('active');
+        } else {
+          btn.classList.toggle('active');
+          const anyActive = [...el.querySelectorAll('.period-btn[data-p]')]
+            .some(b => parseInt(b.dataset.p) > 0 && b.classList.contains('active'));
+          allBtn.classList.toggle('active', !anyActive);
         }
-        if (id === 'customPeriodSel') {
-          customState.quarter = 0;
-          document.querySelectorAll('#customQuarterSel .period-btn').forEach(b => b.classList.remove('active'));
-        }
+        updateQuarterHighlights(quartSelId, id);
       });
     });
   });
@@ -2657,37 +2671,58 @@ let compareChartInst = null;
 
 const QUARTER_PERIODS = { 1:[1,2,3], 2:[4,5,6], 3:[7,8,9], 4:[10,11,12] };
 
+function getActivePeriods(selId) {
+  const el = document.getElementById(selId);
+  if (!el) return [];
+  return [...el.querySelectorAll('.period-btn.active[data-p]')]
+    .map(b => parseInt(b.dataset.p)).filter(p => p > 0);
+}
+function getPeriodsMetric(item, periods) {
+  if (!periods || periods.length === 0) return getItemMetric(item, 0);
+  return periods.reduce((sum, p) => sum + getItemMetric(item, p), 0);
+}
+function getPeriodsLabel(periods) {
+  if (!periods || periods.length === 0) return 'Full Year';
+  for (const [q, qps] of Object.entries(QUARTER_PERIODS)) {
+    if (periods.length === 3 && qps.every(p => periods.includes(p)) && periods.every(p => qps.includes(p)))
+      return `Q${q} (P${qps.join('+P')})`;
+  }
+  if (periods.length === 1) return `Period ${periods[0]}`;
+  return `P${periods.join('+P')}`;
+}
+function updateQuarterHighlights(quartSelId, periodSelId) {
+  const periods = getActivePeriods(periodSelId);
+  document.querySelectorAll(`#${quartSelId} .period-btn`).forEach(btn => {
+    const qps = QUARTER_PERIODS[parseInt(btn.dataset.q)];
+    if (!qps) return;
+    btn.classList.toggle('active', qps.every(p => periods.includes(p)));
+  });
+}
+
 function getQuarterTotal(item, q) {
   return QUARTER_PERIODS[q].reduce((s, p) => s + (item.periods[p-1] || 0), 0);
 }
 
 function selectCmpQuarter(q) {
-  // Deselect period buttons, toggle quarter
-  if (state.cmpQuarter === q) {
-    state.cmpQuarter = 0;
-  } else {
-    state.cmpQuarter = q;
-    // Deactivate period selector
-    document.querySelectorAll('#cmpPeriodSel .period-btn').forEach(b => b.classList.remove('active'));
-    document.querySelector('#cmpPeriodSel .period-btn[data-p="0"]').classList.add('active');
-  }
-  document.querySelectorAll('#cmpQuarterSel .period-btn').forEach(b => b.classList.remove('active'));
-  if (state.cmpQuarter) document.querySelector(`#cmpQuarterSel .period-btn[data-q="${q}"]`).classList.add('active');
+  const qps = QUARTER_PERIODS[q];
+  const el = document.getElementById('cmpPeriodSel');
+  const allBtn = el.querySelector('.period-btn[data-p="0"]');
+  const current = getActivePeriods('cmpPeriodSel');
+  const allIn = qps.every(p => current.includes(p));
+  qps.forEach(p => {
+    const btn = el.querySelector(`.period-btn[data-p="${p}"]`);
+    if (btn) btn.classList.toggle('active', !allIn);
+  });
+  const anyActive = getActivePeriods('cmpPeriodSel').length > 0;
+  allBtn.classList.toggle('active', !anyActive);
+  updateQuarterHighlights('cmpQuarterSel', 'cmpPeriodSel');
 }
 
 function runCompare() {
   if (state.cmpMode === 'materials') { runMaterialsCompare(); return; }
   const baseYear = parseInt(document.getElementById('cmpBaseYear').value);
   const vsYear = parseInt(document.getElementById('cmpVsYear').value);
-  const period = getActivePeriod('cmpPeriodSel');
-  const quarter = state.cmpQuarter;
-
-  // If period other than ALL is picked, clear quarter selection
-  if (period !== 0 && quarter) {
-    state.cmpQuarter = 0;
-    document.querySelectorAll('#cmpQuarterSel .period-btn').forEach(b => b.classList.remove('active'));
-  }
-  const activeQuarter = period === 0 ? state.cmpQuarter : 0;
+  const periods = getActivePeriods('cmpPeriodSel');
 
   if (!state.years[baseYear] || !state.years[vsYear]) {
     document.getElementById('compareContent').innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Missing data</div><div class="empty-sub">Load both years first.</div></div>';
@@ -2703,12 +2738,8 @@ function runCompare() {
     if (state.cmpActiveCats.length > 0 && !state.cmpActiveCats.includes(cat)) return;
     const baseItem = getItemForYear(baseYear, item.itemCode);
     const vsItem = getItemForYear(vsYear, item.itemCode);
-    const baseQty = activeQuarter
-      ? (baseItem ? getQuarterMetric(baseItem, activeQuarter) : 0)
-      : (baseItem ? getItemMetric(baseItem, period) : 0);
-    const vsQty = activeQuarter
-      ? (vsItem ? getQuarterMetric(vsItem, activeQuarter) : 0)
-      : (vsItem ? getItemMetric(vsItem, period) : 0);
+    const baseQty = baseItem ? getPeriodsMetric(baseItem, periods) : 0;
+    const vsQty   = vsItem   ? getPeriodsMetric(vsItem,   periods) : 0;
     if (baseQty === 0 && vsQty === 0) return;
     const pct = calcPct(baseQty, vsQty);
     rows.push({ ...item, baseQty, vsQty, pct, cat });
@@ -2727,7 +2758,7 @@ function runCompare() {
   }
 
   const totalPct = calcPct(totalBase, totalVs);
-  const periodLabel = activeQuarter ? `Q${activeQuarter} (P${QUARTER_PERIODS[activeQuarter].join('+P')})` : (period === 0 ? 'Full Year' : `Period ${period}`);
+  const periodLabel = getPeriodsLabel(periods);
   const statsEl = document.getElementById('cmpStats');
   statsEl.style.display = 'flex';
   statsEl.innerHTML = `
@@ -2779,8 +2810,7 @@ function runCompare() {
 function runMaterialsCompare() {
   const baseYear = parseInt(document.getElementById('matBaseYear')?.value);
   const vsYear   = parseInt(document.getElementById('matVsYear')?.value);
-  const period   = getActivePeriod('cmpPeriodSel');
-  const quarter  = state.cmpQuarter;
+  const periods  = getActivePeriods('cmpPeriodSel');
 
   if (!baseYear || !vsYear) {
     document.getElementById('compareContent').innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">No materials data</div><div class="empty-sub">Upload Inventory Issue History Report CSV files (one per year) to use this view.</div></div>';
@@ -2799,25 +2829,23 @@ function runMaterialsCompare() {
     });
   });
 
-  const getIssued = (year, code, p, q) => {
+  const getIssued = (year, code) => {
     const yearData = state.issueYears[year];
     if (!yearData) return 0;
     const item = yearData.items.find(i => i.itemCode === code);
     if (!item) return 0;
-    if (q) return QUARTER_PERIODS[q].reduce((s, pp) => s + (item.issued[pp-1] || 0), 0);
-    if (p === 0) return item.issued.reduce((a,b) => a+b, 0);
-    return item.issued[p-1] || 0;
+    if (!periods.length) return item.issued.reduce((a,b) => a+b, 0);
+    return periods.reduce((s, p) => s + (item.issued[p-1] || 0), 0);
   };
 
-  const activeQuarter = period === 0 ? quarter : 0;
   const rows = [];
   let totalBase = 0, totalVs = 0;
 
   allCodes.forEach((item, code) => {
     const matCat = getMaterialCat(code);
     if (state.matActiveCats.length > 0 && !state.matActiveCats.includes(matCat)) return;
-    const baseQty = getIssued(baseYear, code, period, activeQuarter);
-    const vsQty   = getIssued(vsYear,   code, period, activeQuarter);
+    const baseQty = getIssued(baseYear, code);
+    const vsQty   = getIssued(vsYear,   code);
     if (baseQty === 0 && vsQty === 0) return;
     const pct = calcPct(baseQty, vsQty);
     rows.push({ ...item, baseQty, vsQty, pct });
@@ -2836,9 +2864,7 @@ function runMaterialsCompare() {
   }
 
   const totalPct = calcPct(totalBase, totalVs);
-  const periodLabel = activeQuarter
-    ? `Q${activeQuarter} (P${QUARTER_PERIODS[activeQuarter].join('+P')})`
-    : (period === 0 ? 'Full Year' : `Period ${period}`);
+  const periodLabel = getPeriodsLabel(periods);
 
   const statsEl = document.getElementById('cmpStats');
   statsEl.style.display = 'flex';
@@ -4150,13 +4176,18 @@ function toggleCustomYear(y) {
 }
 
 function selectCustomQuarter(q) {
-  customState.quarter = customState.quarter === q ? 0 : q;
-  document.querySelectorAll('#customQuarterSel .period-btn').forEach(b => b.classList.remove('active'));
-  if (customState.quarter) {
-    document.querySelector(`#customQuarterSel .period-btn[data-q="${q}"]`).classList.add('active');
-    document.querySelectorAll('#customPeriodSel .period-btn').forEach(b => b.classList.remove('active'));
-    document.querySelector('#customPeriodSel .period-btn[data-p="0"]').classList.add('active');
-  }
+  const qps = QUARTER_PERIODS[q];
+  const el = document.getElementById('customPeriodSel');
+  const allBtn = el.querySelector('.period-btn[data-p="0"]');
+  const current = getActivePeriods('customPeriodSel');
+  const allIn = qps.every(p => current.includes(p));
+  qps.forEach(p => {
+    const btn = el.querySelector(`.period-btn[data-p="${p}"]`);
+    if (btn) btn.classList.toggle('active', !allIn);
+  });
+  const anyActive = getActivePeriods('customPeriodSel').length > 0;
+  allBtn.classList.toggle('active', !anyActive);
+  updateQuarterHighlights('customQuarterSel', 'customPeriodSel');
 }
 
 function addCustomItem(itemCode, description, prodLine) {
@@ -4327,23 +4358,18 @@ function runCustomCompareMaterials() {
     return;
   }
 
-  const period = getActivePeriod('customPeriodSel');
-  const quarter = customState.quarter;
-  const activeQuarter = period === 0 ? quarter : 0;
+  const periods = getActivePeriods('customPeriodSel');
 
   const getIssued = (year, code) => {
     const yd = state.issueYears[year];
     if (!yd) return 0;
     const item = yd.items.find(i => i.itemCode === code);
     if (!item) return 0;
-    if (activeQuarter) return QUARTER_PERIODS[activeQuarter].reduce((s,p) => s + (item.issued[p-1]||0), 0);
-    if (period === 0) return item.issued.reduce((a,b)=>a+b,0);
-    return item.issued[period-1]||0;
+    if (!periods.length) return item.issued.reduce((a,b)=>a+b,0);
+    return periods.reduce((s,p) => s + (item.issued[p-1]||0), 0);
   };
 
-  const periodLabel = activeQuarter
-    ? `Q${activeQuarter} (P${QUARTER_PERIODS[activeQuarter].join('+P')})`
-    : (period === 0 ? 'Full Year' : `Period ${period}`);
+  const periodLabel = getPeriodsLabel(periods);
 
   let rows = [];
 
@@ -4574,13 +4600,10 @@ function runCustomCompare() {
     return;
   }
 
-  const period = getActivePeriod('customPeriodSel');
-  const quarter = customState.quarter;
+  const periods = getActivePeriods('customPeriodSel');
   const activeYears = customState.years.filter(y => state.years[y]);
 
-  const periodLabel = quarter
-    ? `Q${quarter} (P${QUARTER_PERIODS[quarter].join('+P')})`
-    : (period === 0 ? 'Full Year' : `Period ${period}`);
+  const periodLabel = getPeriodsLabel(periods);
 
   const metricLabel = getMetricLabel();
   const colors = ['#c8a84b','#5b9bd5','#4caf7d','#9b7fd4','#e0885c','#4cb8b8','#e05c5c'];
@@ -4590,7 +4613,7 @@ function runCustomCompare() {
     const yearQtys = activeYears.map(y => {
       const yi = getItemForYear(y, item.itemCode);
       if (!yi) return 0;
-      return quarter ? getQuarterMetric(yi, quarter) : getItemMetric(yi, period);
+      return getPeriodsMetric(yi, periods);
     });
     return { ...item, yearQtys };
   });
@@ -4649,14 +4672,11 @@ function runCustomCompareCategories() {
     return;
   }
 
-  const period = getActivePeriod('customPeriodSel');
-  const quarter = customState.quarter;
+  const periods = getActivePeriods('customPeriodSel');
   const activeYears = customState.years.filter(y => state.years[y]);
   const allItems = getAllUniqueItems();
 
-  const periodLabel = quarter
-    ? `Q${quarter} (P${QUARTER_PERIODS[quarter].join('+P')})`
-    : (period === 0 ? 'Full Year' : `Period ${period}`);
+  const periodLabel = getPeriodsLabel(periods);
   const metricLabel = getMetricLabel();
   const colors = ['#c8a84b','#5b9bd5','#4caf7d','#9b7fd4','#e0885c','#4cb8b8','#e05c5c'];
   const palMap = {
@@ -4672,7 +4692,7 @@ function runCustomCompareCategories() {
         .reduce((sum, item) => {
           const yi = getItemForYear(y, item.itemCode);
           if (!yi) return sum;
-          return sum + (quarter ? getQuarterMetric(yi, quarter) : getItemMetric(yi, period));
+          return sum + getPeriodsMetric(yi, periods);
         }, 0);
     });
     return { cat, yearQtys };
@@ -4761,11 +4781,7 @@ function exportPDF(tab) {
   if (tab === 'compare') {
     const baseYear = document.getElementById('cmpBaseYear').value;
     const vsYear = document.getElementById('cmpVsYear').value;
-    const activePeriodBtn = document.querySelector('#cmpPeriodSel .period-btn.active');
-    const activeQuarterBtn = document.querySelector('#cmpQuarterSel .period-btn.active');
-    const periodLabel = activeQuarterBtn
-      ? `Q${activeQuarterBtn.dataset.q}`
-      : (activePeriodBtn && activePeriodBtn.dataset.p !== '0' ? `Period ${activePeriodBtn.dataset.p}` : 'Full Year');
+    const periodLabel = getPeriodsLabel(getActivePeriods('cmpPeriodSel'));
     const activeCats = state.cmpActiveCats.length ? state.cmpActiveCats.join(', ') : 'All Categories';
 
     titleText = `Year-Over-Year Comparison`;
@@ -5017,11 +5033,7 @@ function exportPDF(tab) {
 
   // ── CUSTOM COMPARE ──
   else if (tab === 'custom') {
-    const activePeriodBtn = document.querySelector('#customPeriodSel .period-btn.active');
-    const activeQuarterBtn = document.querySelector('#customQuarterSel .period-btn.active');
-    const periodLabel = activeQuarterBtn
-      ? `Q${activeQuarterBtn.dataset.q}`
-      : (activePeriodBtn && activePeriodBtn.dataset.p !== '0' ? `Period ${activePeriodBtn.dataset.p}` : 'Full Year');
+    const periodLabel = getPeriodsLabel(getActivePeriods('customPeriodSel'));
     titleText = `Custom Item Comparison`;
     subtitleText = `${customState.years.join(', ')}  ·  ${periodLabel}  ·  ${customState.items.length} items`;
 

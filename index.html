@@ -691,7 +691,7 @@
         <div class="upload-icon">📂</div>
         <div class="upload-text">
           <strong>Upload CSV Files</strong>
-          One per year — drop or click
+          All years in one file — drop or click
         </div>
       </div>
       <input type="file" id="fileInput" accept=".csv" multiple>
@@ -1328,66 +1328,41 @@ function classifyItem(item) {
 // CSV PARSER
 // ═══════════════════════════════════════════════
 function parseCSV(text, filename) {
-  // Extract year from filename
-  const yearMatch = filename.match(/\b(20\d{2})\b/);
-  const year = yearMatch ? parseInt(yearMatch[1]) : null;
-
+  // Multi-year CSV: year is embedded at col 69 in each row.
+  // Key by itemCode + '__' + year to sum warehouses within the same year.
   const lines = text.trim().split('\n');
-  // Use a map to accumulate quantities across all warehouse rows for the same item
-  const itemMap = new Map(); // itemCode -> { description, prodLine, periods[] }
+  const yearItemMap = new Map();
 
   for (const line of lines) {
     if (!line.trim()) continue;
-
     const cols = parseCSVLine(line);
     if (cols.length < 80) continue;
 
-    // In this CSV format (AII export):
-    // idx 24 = Item Code
-    // idx 25 = Description (may be empty for -CUS items)
-    // idx 26 = "Prod Line:"
-    // idx 27 = prod line value (e.g. "0530")
-    // idx 70 = "Quantity Sold:", 71-82 = 12 period qty
-    // idx 84 = "Dollars Sold:",  85-96 = 12 period dollars
-    // idx 112 = "Cost of Goods Sold:", 113-124 = 12 period COGS
-    // Each item appears once per warehouse -- we SUM across all warehouses.
-
     const itemCode = cols[24] ? cols[24].trim() : '';
-
-    // Skip header rows, totals, and non-item rows
     if (!itemCode) continue;
     if (itemCode === 'Item Code') continue;
     if (itemCode.startsWith('Total For')) continue;
     if (itemCode === 'Report Total:') continue;
     if (itemCode === 'Quantity Sold:') continue;
     if (itemCode === 'Warehouse:' || itemCode.startsWith('Warehouse')) continue;
-
-    // Verify structure: col 26 should be "Prod Line:"
     if (cols[26] && cols[26].trim() !== 'Prod Line:') continue;
 
-    const description = cols[25] ? cols[25].trim() : '';
-    const prodLine = cols[27] ? cols[27].trim() : '';
+    // Year embedded at col 68 (label) / col 69 (value)
+    if (!cols[68] || cols[68].trim() !== 'Year:') continue;
+    const year = parseInt(cols[69]);
+    if (!year || isNaN(year)) continue;
 
-    // Parse qty (cols 71-82)
+    const description = cols[25] ? cols[25].trim() : '';
+    const prodLine    = cols[27] ? cols[27].trim() : '';
+
     let rowPeriods = [0,0,0,0,0,0,0,0,0,0,0,0];
     if (cols[70] && cols[70].trim() === 'Quantity Sold:') {
       for (let p = 0; p < 12; p++) {
         const raw = cols[71 + p] ? cols[71 + p].trim().replace(/,/g,'') : '0';
         rowPeriods[p] = parseInt(raw) || 0;
       }
-    } else {
-      for (let i = 60; i < cols.length - 12; i++) {
-        if (cols[i] && cols[i].trim() === 'Quantity Sold:') {
-          for (let p = 0; p < 12; p++) {
-            const raw = cols[i + 1 + p] ? cols[i + 1 + p].trim().replace(/,/g,'') : '0';
-            rowPeriods[p] = parseInt(raw) || 0;
-          }
-          break;
-        }
-      }
     }
 
-    // Parse dollars sold (cols 85-96)
     let rowDollars = [0,0,0,0,0,0,0,0,0,0,0,0];
     if (cols[84] && cols[84].trim() === 'Dollars Sold:') {
       for (let p = 0; p < 12; p++) {
@@ -1396,7 +1371,6 @@ function parseCSV(text, filename) {
       }
     }
 
-    // Parse cost of goods sold (cols 113-124)
     let rowCOGS = [0,0,0,0,0,0,0,0,0,0,0,0];
     if (cols[112] && cols[112].trim() === 'Cost of Goods Sold:') {
       for (let p = 0; p < 12; p++) {
@@ -1405,23 +1379,30 @@ function parseCSV(text, filename) {
       }
     }
 
-    // Accumulate into map (sum across warehouses)
-    if (itemMap.has(itemCode)) {
-      const existing = itemMap.get(itemCode);
+    const key = itemCode + '__' + year;
+    if (yearItemMap.has(key)) {
+      const ex = yearItemMap.get(key);
       for (let p = 0; p < 12; p++) {
-        existing.periods[p] += rowPeriods[p];
-        existing.dollars[p] += rowDollars[p];
-        existing.cogs[p] += rowCOGS[p];
+        ex.periods[p] += rowPeriods[p];
+        ex.dollars[p] += rowDollars[p];
+        ex.cogs[p]    += rowCOGS[p];
       }
-      if (!existing.description && description) existing.description = description;
+      if (!ex.description && description) ex.description = description;
     } else {
-      itemMap.set(itemCode, { itemCode, description, prodLine, periods: rowPeriods, dollars: rowDollars, cogs: rowCOGS });
+      yearItemMap.set(key, { itemCode, description, prodLine, year,
+        periods: rowPeriods, dollars: rowDollars, cogs: rowCOGS });
     }
   }
 
-  const items = [...itemMap.values()];
-  return { year, items };
+  // Group by year
+  const yearGroups = {};
+  for (const item of yearItemMap.values()) {
+    if (!yearGroups[item.year]) yearGroups[item.year] = [];
+    yearGroups[item.year].push(item);
+  }
+  return { years: yearGroups };
 }
+
 
 function parseCSVLine(line) {
   const result = [];
@@ -1528,14 +1509,16 @@ function handleFiles(files) {
         saveIssueYears();
         updateUI();
       } else if (isSalesCSV(text)) {
-        // Sales CSV
-        const { year, items } = parseCSV(text, file.name);
-        if (!year) {
-          alert(`Could not detect year from filename: ${file.name}\nPlease include the year in the filename (e.g. 2025_ITEMS_SOLD.csv)`);
+        // Sales CSV — multi-year file, year embedded at col 69
+        const { years } = parseCSV(text, file.name);
+        if (!Object.keys(years).length) {
+          alert(`No data found in: ${file.name}`);
           return;
         }
-        const filtered = items.filter(item => classifyItem(item) !== null);
-        state.years[year] = { items: filtered, filename: file.name };
+        Object.entries(years).forEach(([yr, items]) => {
+          const filtered = items.filter(item => classifyItem(item) !== null);
+          state.years[parseInt(yr)] = { items: filtered, filename: file.name };
+        });
         saveYears();
         updateUI();
       } else {

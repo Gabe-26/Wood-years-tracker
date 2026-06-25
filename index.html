@@ -4913,12 +4913,24 @@ function exportPDF(tab) {
         <table class="pdf-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
     }
 
-    // Only the first canvas — the year-over-year line chart (reflects excluded years)
-    const firstCanvas = document.querySelector('#panel-items canvas');
-    if (firstCanvas) {
-      const title = firstCanvas.closest('.chart-card')?.querySelector('.chart-title')?.textContent || 'Year Over Year';
-      try { chartsHTML = `<div class="pdf-chart-row"><div class="pdf-chart-box" style="flex:0 0 100%;"><div class="pdf-chart-title">${title}</div><img src="${firstCanvas.toDataURL('image/png')}"></div></div>`; } catch(e){}
-    }
+    // YoY line chart (full width) + Annual Totals & Period Pattern bar charts (side by side)
+    try {
+      const firstCanvas  = document.querySelector('#panel-items canvas');
+      const totalCanvas  = document.getElementById('itemTotalChart');
+      const periodCanvas = document.getElementById('itemPeriodChart');
+      let html = '';
+      if (firstCanvas) {
+        const title = firstCanvas.closest('.chart-card')?.querySelector('.chart-title')?.textContent || 'Year Over Year';
+        html += `<div class="pdf-chart-row"><div class="pdf-chart-box" style="flex:0 0 100%;"><div class="pdf-chart-title">${title}</div><img src="${firstCanvas.toDataURL('image/png')}"></div></div>`;
+      }
+      if (totalCanvas || periodCanvas) {
+        html += '<div class="pdf-chart-row">';
+        if (totalCanvas)  html += `<div class="pdf-chart-box" style="flex:0 0 48%;"><div class="pdf-chart-title">Annual Totals</div><img src="${totalCanvas.toDataURL('image/png')}"></div>`;
+        if (periodCanvas) html += `<div class="pdf-chart-box" style="flex:0 0 48%;"><div class="pdf-chart-title">Period Pattern (Latest Year)</div><img src="${periodCanvas.toDataURL('image/png')}"></div>`;
+        html += '</div>';
+      }
+      chartsHTML = html;
+    } catch(e) {}
 
     // Build second page: Cost & Profitability table (no chart)
     const profitTable = document.querySelector('.profit-table');

@@ -3465,7 +3465,7 @@ function renderItemDetailChart() {
     data: {
       labels: Array.from({length:12},(_,i)=>'P'+(i+1)),
       datasets: activeYearData.map(yd => {
-        const arr = state.metric === 'dollars' ? yd.dollars : state.metric === 'cogs' ? yd.cogs : yd.periods;
+        const arr = state.metric === 'dollars' ? yd.dollars : state.metric === 'cogs' ? yd.cogs : state.metric === 'profit' ? (yd.dollars||[]).map((d,i)=>d-((yd.cogs&&yd.cogs[i])||0)) : yd.periods;
         return {
           label: String(yd.year),
           data: arr || Array(12).fill(0),
@@ -3480,6 +3480,36 @@ function renderItemDetailChart() {
     },
     options: chartOpts(getMetricLabel(), false)
   });
+  // Rebuild Annual Totals + Period Pattern bar charts to reflect active metric
+  if (window._itemTotalChartInst)  { try { window._itemTotalChartInst.destroy();  } catch(e){} window._itemTotalChartInst  = null; }
+  if (window._itemPeriodChartInst) { try { window._itemPeriodChartInst.destroy(); } catch(e){} window._itemPeriodChartInst = null; }
+  const _getMetricArr = yd => {
+    if (state.metric === 'dollars') return yd.dollars || Array(12).fill(0);
+    if (state.metric === 'cogs')    return yd.cogs    || Array(12).fill(0);
+    if (state.metric === 'profit')  return (yd.dollars||Array(12).fill(0)).map((d,i)=>d-((yd.cogs&&yd.cogs[i])||0));
+    return yd.periods || Array(12).fill(0);
+  };
+  const _ac = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+  try {
+    const tc = document.getElementById('itemTotalChart');
+    if (tc) window._itemTotalChartInst = new Chart(tc.getContext('2d'), {
+      type: 'bar',
+      data: { labels: allYearData.map(yd=>String(yd.year)),
+        datasets: [{ label: 'Annual Total', data: allYearData.map(yd=>_getMetricArr(yd).reduce((a,b)=>a+b,0)), backgroundColor: _ac+'99', borderColor: _ac, borderWidth: 1 }] },
+      options: chartOpts(getMetricLabel(), false)
+    });
+  } catch(e) {}
+  try {
+    const latest = allYearData[allYearData.length-1];
+    const pc = document.getElementById('itemPeriodChart');
+    if (latest && pc) window._itemPeriodChartInst = new Chart(pc.getContext('2d'), {
+      type: 'bar',
+      data: { labels: Array.from({length:12},(_,i)=>'P'+(i+1)),
+        datasets: [{ label: String(latest.year), data: _getMetricArr(latest), backgroundColor: _ac+'99', borderColor: _ac, borderWidth: 1 }] },
+      options: chartOpts(getMetricLabel(), false)
+    });
+  } catch(e) {}
+
 }
 
 function renderProfitabilitySection(yearData, containerId) {
@@ -3899,28 +3929,7 @@ function runItemDetail() {
 
   const colors = ['#c8a84b','#5b9bd5','#4caf7d','#9b7fd4','#e0885c','#4cb8b8','#e05c5c'];
 
-  // Total bar
-  const ctx2 = document.getElementById('itemTotalChart').getContext('2d');
-  new Chart(ctx2, {
-    type: 'bar',
-    data: {
-      labels: yearData.map(yd=>String(yd.year)),
-      datasets: [{ label: 'Annual Total', data: yearData.map(yd=>yd.total), backgroundColor: '#c8a84b99', borderColor: '#c8a84b', borderWidth: 1 }]
-    },
-    options: chartOpts('Total Sold', false)
-  });
 
-  // Latest year period pattern
-  const latest = yearData[yearData.length-1];
-  const ctx3 = document.getElementById('itemPeriodChart').getContext('2d');
-  new Chart(ctx3, {
-    type: 'bar',
-    data: {
-      labels: Array.from({length:12},(_,i)=>'P'+(i+1)),
-      datasets: [{ label: String(latest.year), data: latest.periods, backgroundColor: '#5b9bd599', borderColor: '#5b9bd5', borderWidth: 1 }]
-    },
-    options: chartOpts('Qty Sold', false)
-  });
 
   renderProfitabilitySection(yearData, 'profitabilitySection');
 }

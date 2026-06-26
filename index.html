@@ -652,6 +652,21 @@
   .pdf-section-title { font-size: 11px; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 0.08em; color: #666; margin-bottom: 8px; margin-top: 16px; }
   .pdf-footer { margin-top: 16px; padding-top: 8px; border-top: 1px solid #ddd; display: flex; justify-content: space-between; font-size: 9px; color: #aaa; font-family: 'IBM Plex Mono', monospace; }
 
+
+  /* Item Detail — click-to-exclude charts from PDF */
+  .chart-toggleable { cursor: pointer; transition: opacity 0.2s; position: relative; user-select: none; }
+  .chart-toggleable:hover { opacity: 0.88; }
+  .chart-pdf-excluded { opacity: 0.18 !important; }
+  .chart-pdf-excluded::after {
+    content: '✕  EXCLUDED FROM PDF — click to restore';
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: #e05c5c; font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+    white-space: nowrap; pointer-events: none;
+    background: rgba(20,20,20,0.92); padding: 6px 14px;
+    border-radius: 4px; border: 1px solid #e05c5c;
+  }
 </style>
 </head>
 <body>
@@ -3831,6 +3846,10 @@ function renderItemMatChart() {
   });
 }
 
+
+function toggleChartExclusion(el) {
+  el.classList.toggle('chart-pdf-excluded');
+}
 function runItemDetail() {
   const code = document.getElementById('itemDetailSelect').value;
   if (!code) return;
@@ -3905,15 +3924,15 @@ function runItemDetail() {
       </table>
     </div>
     <div class="chart-grid">
-      <div class="chart-card full">
+      <div class="chart-card full chart-toggleable" title="Click to exclude from PDF" onclick="toggleChartExclusion(this)">
         <div class="chart-title">Year Over Year — All Periods</div>
         <div class="chart-container tall"><canvas id="itemDetailChart"></canvas></div>
       </div>
-      <div class="chart-card">
+      <div class="chart-card full chart-toggleable" title="Click to exclude from PDF" onclick="toggleChartExclusion(this)">
         <div class="chart-title">Annual Totals</div>
         <div class="chart-container"><canvas id="itemTotalChart"></canvas></div>
       </div>
-      <div class="chart-card">
+      <div class="chart-card full chart-toggleable" title="Click to exclude from PDF" onclick="toggleChartExclusion(this)">
         <div class="chart-title">Period Pattern (latest year)</div>
         <div class="chart-container"><canvas id="itemPeriodChart"></canvas></div>
       </div>
@@ -4922,22 +4941,23 @@ function exportPDF(tab) {
         <table class="pdf-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
     }
 
-    // YoY line chart (full width) + Annual Totals & Period Pattern bar charts (side by side)
+    // Charts: full-width each, stacked; skip any the user has excluded (chart-pdf-excluded)
     try {
-      const firstCanvas  = document.querySelector('#panel-items canvas');
-      const totalCanvas  = document.getElementById('itemTotalChart');
-      const periodCanvas = document.getElementById('itemPeriodChart');
+      const chartDefs = [
+        { id: 'itemDetailChart', title: 'Year Over Year — All Periods' },
+        { id: 'itemTotalChart',  title: 'Annual Totals'                },
+        { id: 'itemPeriodChart', title: 'Period Pattern (Latest Year)' },
+      ];
       let html = '';
-      if (firstCanvas) {
-        const title = firstCanvas.closest('.chart-card')?.querySelector('.chart-title')?.textContent || 'Year Over Year';
-        html += `<div class="pdf-chart-row"><div class="pdf-chart-box" style="flex:0 0 100%;"><div class="pdf-chart-title">${title}</div><img src="${firstCanvas.toDataURL('image/png')}"></div></div>`;
-      }
-      if (totalCanvas || periodCanvas) {
-        html += '<div class="pdf-chart-row">';
-        if (totalCanvas)  html += `<div class="pdf-chart-box" style="flex:0 0 48%;"><div class="pdf-chart-title">Annual Totals</div><img src="${totalCanvas.toDataURL('image/png')}"></div>`;
-        if (periodCanvas) html += `<div class="pdf-chart-box" style="flex:0 0 48%;"><div class="pdf-chart-title">Period Pattern (Latest Year)</div><img src="${periodCanvas.toDataURL('image/png')}"></div>`;
-        html += '</div>';
-      }
+      chartDefs.forEach(({ id, title }) => {
+        const canvas = document.getElementById(id);
+        if (!canvas) return;
+        const card = canvas.closest('.chart-toggleable');
+        if (card && card.classList.contains('chart-pdf-excluded')) return;
+        try {
+          html += `<div class="pdf-chart-row" style="margin-bottom:10px;"><div class="pdf-chart-box" style="flex:0 0 100%;"><div class="pdf-chart-title">${title}</div><img src="${canvas.toDataURL('image/png')}" style="width:100%;height:auto;display:block;"></div></div>`;
+        } catch(e) {}
+      });
       chartsHTML = html;
     } catch(e) {}
 

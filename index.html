@@ -1442,23 +1442,14 @@ function parseCSVLine(line) {
 // ═══════════════════════════════════════════════
 // ISSUE CSV PARSER (Inventory Issue History Report)
 // ═══════════════════════════════════════════════
-function parseIssueCSV(text, filename) {
-  const yearMatch = filename.match(/(20\d{2})/) || text.match(/Year Equal To:\s*(20\d{2})/);
-  const year = yearMatch ? parseInt(yearMatch[1]) : null;
-
+function parseIssueCSV(text) {
   const lines = text.trim().split('\n');
-  const itemMap = new Map();
+  const yearMap = new Map(); // year -> Map(itemCode -> item)
 
   for (const line of lines) {
     if (!line.trim()) continue;
     const cols = parseCSVLine(line);
     if (cols.length < 60) continue;
-
-    // Detect header/footer rows
-    const col0 = cols[0] ? cols[0].trim() : '';
-    if (col0 === 'Item Summary Sorted by Item Code') {
-      // This row may still contain an item at col 22
-    }
 
     const itemCode = cols[22] ? cols[22].trim() : '';
     if (!itemCode) continue;
@@ -1469,6 +1460,11 @@ function parseIssueCSV(text, filename) {
     const description = cols[23] ? cols[23].trim() : '';
     // col 24 should be "Prod Line:", col 25 the value — read if present, don't skip if absent
     const prodLine = (cols[24] && cols[24].trim() === 'Prod Line:') ? (cols[25] ? cols[25].trim() : '') : '';
+
+    // Year at col 44 ("Year:" label), value at col 45
+    if (!cols[44] || cols[44].trim() !== 'Year:') continue;
+    const year = parseInt(cols[45]);
+    if (!year || isNaN(year)) continue;
 
     // Quantity Issued at col 46, values at 47-58
     let issued = [0,0,0,0,0,0,0,0,0,0,0,0];
@@ -1482,17 +1478,23 @@ function parseIssueCSV(text, filename) {
       }
     }
 
-    // Accumulate (sum across warehouses like sales parser)
-    if (itemMap.has(itemCode)) {
-      const existing = itemMap.get(itemCode);
+    // Get or create year bucket, then accumulate (sum across warehouses)
+    if (!yearMap.has(year)) yearMap.set(year, new Map());
+    const itemsForYear = yearMap.get(year);
+    if (itemsForYear.has(itemCode)) {
+      const existing = itemsForYear.get(itemCode);
       for (let p = 0; p < 12; p++) existing.issued[p] += issued[p];
       if (!existing.description && description) existing.description = description;
     } else {
-      itemMap.set(itemCode, { itemCode, description, prodLine, issued });
+      itemsForYear.set(itemCode, { itemCode, description, prodLine, issued });
     }
   }
 
-  return { year, items: [...itemMap.values()] };
+  const years = {};
+  for (const [yr, itemsMap] of yearMap.entries()) {
+    years[yr] = [...itemsMap.values()];
+  }
+  return { years };
 }
 
 function isIssueCSV(text) {
@@ -1514,13 +1516,15 @@ function handleFiles(files) {
       const text = e.target.result;
       if (isIssueCSV(text)) {
         // Materials / Issue CSV
-        const { year, items } = parseIssueCSV(text, file.name);
-        if (!year) {
-          alert(`Could not detect year from filename: ${file.name}\nPlease include the year in the filename (e.g. 2025_wood_issue.csv)`);
+        const { years } = parseIssueCSV(text);
+        if (!Object.keys(years).length) {
+          alert(`No issue data found in: ${file.name}`);
           return;
         }
-        const filtered = items.filter(i => isMaterialCodeAllowed(i.itemCode) && !state.excludedMaterialCodes.includes(i.itemCode));
-        state.issueYears[year] = { items: filtered, filename: file.name };
+        Object.entries(years).forEach(([yr, items]) => {
+          const filtered = items.filter(i => isMaterialCodeAllowed(i.itemCode) && !state.excludedMaterialCodes.includes(i.itemCode));
+          state.issueYears[parseInt(yr)] = { items: filtered, filename: file.name };
+        });
         saveIssueYears();
         updateUI();
       } else if (isSalesCSV(text)) {
@@ -2811,7 +2815,7 @@ function runMaterialsCompare() {
   const periods  = getActivePeriods('cmpPeriodSel');
 
   if (!baseYear || !vsYear) {
-    document.getElementById('compareContent').innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">No materials data</div><div class="empty-sub">Upload Inventory Issue History Report CSV files (one per year) to use this view.</div></div>';
+    document.getElementById('compareContent').innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">No materials data</div><div class="empty-sub">Upload Inventory Issue History Report CSV files to use this view.</div></div>';
     return;
   }
   if (!state.issueYears[baseYear] || !state.issueYears[vsYear]) {

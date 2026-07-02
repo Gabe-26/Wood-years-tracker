@@ -1343,8 +1343,10 @@ function classifyItem(item) {
 // CSV PARSER
 // ═══════════════════════════════════════════════
 function parseCSV(text, filename) {
-  // Multi-year CSV: year is embedded at col 69 in each row.
-  // Key by itemCode + '__' + year to sum warehouses within the same year.
+  // Multi-year CSV: year at col 69. Single-year CSV: year from "Year Equal To:" header.
+  const fallbackYearMatch = text.match(/Year Equal To:\s*(20\d{2})/);
+  const fallbackYear = fallbackYearMatch ? parseInt(fallbackYearMatch[1]) : null;
+
   const lines = text.trim().split('\n');
   const yearItemMap = new Map();
 
@@ -1362,9 +1364,15 @@ function parseCSV(text, filename) {
     if (itemCode === 'Warehouse:' || itemCode.startsWith('Warehouse')) continue;
     if (cols[26] && cols[26].trim() !== 'Prod Line:') continue;
 
-    // Year embedded at col 68 (label) / col 69 (value)
-    if (!cols[68] || cols[68].trim() !== 'Year:') continue;
-    const year = parseInt(cols[69]);
+    // Year at col 68/69 (multi-year); fall back to header year for single-year exports
+    let year;
+    if (cols[68] && cols[68].trim() === 'Year:') {
+      year = parseInt(cols[69]);
+    } else if (fallbackYear) {
+      year = fallbackYear;
+    } else {
+      continue;
+    }
     if (!year || isNaN(year)) continue;
 
     const description = cols[25] ? cols[25].trim() : '';
@@ -1443,8 +1451,12 @@ function parseCSVLine(line) {
 // ISSUE CSV PARSER (Inventory Issue History Report)
 // ═══════════════════════════════════════════════
 function parseIssueCSV(text) {
+  // Multi-year: year at col 45. Single-year: year from "Year Equal To:" header.
+  const fallbackYearMatch = text.match(/Year Equal To:\s*(20\d{2})/);
+  const fallbackYear = fallbackYearMatch ? parseInt(fallbackYearMatch[1]) : null;
+
   const lines = text.trim().split('\n');
-  const yearMap = new Map(); // year -> Map(itemCode -> item)
+  const yearMap = new Map();
 
   for (const line of lines) {
     if (!line.trim()) continue;
@@ -1458,12 +1470,17 @@ function parseIssueCSV(text) {
     if (itemCode.startsWith('Total For')) continue;
 
     const description = cols[23] ? cols[23].trim() : '';
-    // col 24 should be "Prod Line:", col 25 the value — read if present, don't skip if absent
     const prodLine = (cols[24] && cols[24].trim() === 'Prod Line:') ? (cols[25] ? cols[25].trim() : '') : '';
 
-    // Year at col 44 ("Year:" label), value at col 45
-    if (!cols[44] || cols[44].trim() !== 'Year:') continue;
-    const year = parseInt(cols[45]);
+    // Year at col 44/45 (multi-year); fall back to header year for single-year exports
+    let year;
+    if (cols[44] && cols[44].trim() === 'Year:') {
+      year = parseInt(cols[45]);
+    } else if (fallbackYear) {
+      year = fallbackYear;
+    } else {
+      continue;
+    }
     if (!year || isNaN(year)) continue;
 
     // Quantity Issued at col 46, values at 47-58

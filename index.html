@@ -1547,6 +1547,7 @@ function saveReceiptYears() {
   } catch(e) {
     alert('Could not save receipts data to localStorage (may be too large): ' + e.message);
   }
+  invalidateReceiptProdLineCache();
 }
 function saveReceiptLabels() {
   localStorage.setItem('aii_wood_receipt_labels', JSON.stringify(state.receiptLabels));
@@ -3197,8 +3198,9 @@ function updateExcludedMaterialCodesList() {
 // ═══════════════════════════════════════════════
 // RECEIPTS — OWN INDEPENDENT CATEGORY SYSTEM
 // ═══════════════════════════════════════════════
-const RECEIPT_DEFAULT_CAT = 'Uncategorized';
+const RECEIPT_DEFAULT_CAT = 'Uncategorized'; // fallback only for items with no prod line at all
 let _expandedReceiptCat = null;
+let _receiptProdLineCache = null;
 
 function getAllReceiptItems() {
   const itemMap = new Map();
@@ -3210,17 +3212,32 @@ function getAllReceiptItems() {
   return [...itemMap.values()];
 }
 
+// Items default to their Prod Line code as the category (e.g. "0530"), so you
+// can immediately see receipts grouped the way they naturally come in, then
+// rename any prod-line group or create your own categories and move codes
+// into them from there.
+function getReceiptProdLineMap() {
+  if (_receiptProdLineCache) return _receiptProdLineCache;
+  const map = {};
+  getAllReceiptItems().forEach(item => {
+    map[item.itemCode] = (item.prodLine && item.prodLine.trim()) || RECEIPT_DEFAULT_CAT;
+  });
+  _receiptProdLineCache = map;
+  return map;
+}
+function invalidateReceiptProdLineCache() { _receiptProdLineCache = null; }
+
 function getReceiptCat(itemCode) {
   if (state.receiptLabels[itemCode]) return state.receiptLabels[itemCode];
-  return state.renamedReceiptCats[RECEIPT_DEFAULT_CAT] || RECEIPT_DEFAULT_CAT;
+  const base = getReceiptProdLineMap()[itemCode] || RECEIPT_DEFAULT_CAT;
+  return state.renamedReceiptCats[base] || base;
 }
 
 // Categories with at least one loaded, non-excluded item — for display (legend, filters)
 function getAllReceiptCategories() {
-  const defaultCat = state.renamedReceiptCats[RECEIPT_DEFAULT_CAT] || RECEIPT_DEFAULT_CAT;
-  const cats = new Set([defaultCat]);
+  const cats = new Set();
   getAllReceiptItems().forEach(item => cats.add(getReceiptCat(item.itemCode)));
-  return [...cats];
+  return [...cats].sort();
 }
 
 // Categories for reassignment dropdowns — includes empty custom labels too,
@@ -3321,15 +3338,30 @@ function startRenameReceiptCategory(cat, btn) {
 function renameReceiptCategory(oldName, newName) {
   newName = newName.trim();
   if (!newName || newName === oldName) return;
-  const currentDefaultDisplay = state.renamedReceiptCats[RECEIPT_DEFAULT_CAT] || RECEIPT_DEFAULT_CAT;
-  if (oldName === currentDefaultDisplay) {
-    state.renamedReceiptCats[RECEIPT_DEFAULT_CAT] = newName;
+
+  // If oldName is the currently-resolved display name of one or more
+  // prod-line base codes (or is itself an unrenamed base code), remap them.
+  let matchedBase = false;
+  Object.keys(state.renamedReceiptCats).forEach(base => {
+    if (state.renamedReceiptCats[base] === oldName) {
+      state.renamedReceiptCats[base] = newName;
+      matchedBase = true;
+    }
+  });
+  const rawProdLines = new Set(Object.values(getReceiptProdLineMap()));
+  if (!matchedBase && rawProdLines.has(oldName) && !state.renamedReceiptCats[oldName]) {
+    state.renamedReceiptCats[oldName] = newName;
   }
+
+  // Update any manual per-item overrides pointing at oldName
   Object.keys(state.receiptLabels).forEach(k => {
     if (state.receiptLabels[k] === oldName) state.receiptLabels[k] = newName;
   });
+
+  // Update the custom-label list if oldName was a custom category
   const ci = state.receiptCustomLabels.indexOf(oldName);
   if (ci !== -1) state.receiptCustomLabels[ci] = newName;
+
   if (_expandedReceiptCat === oldName) _expandedReceiptCat = newName;
   saveRenamedReceiptCats();
   saveReceiptLabels();

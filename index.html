@@ -286,10 +286,51 @@
   .tab:hover { color: var(--text2); }
   .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
+  /* ── TOP-LEVEL DATA TYPE TABS ── */
+  .toplevel-tabs {
+    display: flex;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    gap: 4px;
+  }
+  .toplevel-tab {
+    padding: 10px 20px 8px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--text3);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+    letter-spacing: 0.06em;
+  }
+  .toplevel-tab:hover { color: var(--text2); }
+  .toplevel-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
   /* ── CONTENT PANELS ── */
   .panel { display: none; flex: 1; overflow: hidden; flex-direction: column; }
   .panel.active { display: flex; }
   .panel-scroll { flex: 1; overflow-y: auto; padding: 20px; }
+
+  /* Data-type wrapper sections (Sales/Issues vs Receipts) inside a panel must
+     themselves be flex containers, or the .panel-scroll inside them loses its
+     bounded height and the page stops scrolling instead of the inner area.
+     (Manage tab's .mgmt-section is structured differently — it sits INSIDE
+     the shared .panel-scroll rather than wrapping one, so it's excluded here.) */
+  .cmp-section, .items-section, .custom-section {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .cmp-section > .panel-scroll,
+  .items-section > .panel-scroll,
+  .custom-section > .panel-scroll {
+    flex: 1;
+    min-height: 0;
+  }
 
   /* ── TOOLBAR ── */
   .toolbar {
@@ -750,11 +791,18 @@
   <!-- MAIN -->
   <div class="main">
 
+    <!-- DATA TYPE TABS -->
+    <div class="toplevel-tabs">
+      <div class="toplevel-tab active" data-dtype="sales" onclick="setDataType('sales')">💰 SALES</div>
+      <div class="toplevel-tab" data-dtype="receipts" onclick="setDataType('receipts')">📦 RECEIPTS</div>
+      <div class="toplevel-tab" data-dtype="issues" onclick="setDataType('issues')">🔨 ISSUES</div>
+    </div>
+
     <!-- TABS -->
     <div class="tabs">
       <div class="tab active" data-tab="compare">COMPARE</div>
       <div class="tab" data-tab="trends">TRENDS</div>
-      <div class="tab" data-tab="projections">PROJECTIONS</div>
+      <div class="tab" data-tab="projections" style="display:none;">PROJECTIONS</div>
       <div class="tab" data-tab="items">ITEM DETAIL</div>
       <div class="tab" data-tab="custom">CUSTOM</div>
       <div class="tab" data-tab="margins">MARGINS</div>
@@ -766,6 +814,7 @@
     ═══════════════════════════════════ -->
     <div class="panel active" id="panel-compare">
 
+      <div class="cmp-section" data-dtype="sales,issues">
       <div class="toolbar" style="flex-wrap:wrap;gap:8px;">
         <div style="display:flex;align-items:center;gap:10px;width:100%;flex-wrap:wrap;">
           <div class="toolbar-group">
@@ -834,6 +883,65 @@
             <div class="empty-icon">📊</div>
             <div class="empty-title">No comparison yet</div>
             <div class="empty-sub">Upload at least two years of CSV data, then select years and a period to compare.</div>
+          </div>
+        </div>
+      </div>
+      </div>
+
+      <!-- RECEIPTS COMPARE -->
+      <div class="cmp-section" data-dtype="receipts" style="display:none;">
+        <div class="toolbar" style="flex-wrap:wrap;gap:8px;">
+          <div style="display:flex;align-items:center;gap:10px;width:100%;flex-wrap:wrap;">
+            <div class="toolbar-group">
+              <span class="toolbar-label">Base Year</span>
+              <select id="rcptBaseYear" style="width:90px;"></select>
+            </div>
+            <div class="toolbar-group">
+              <span class="toolbar-label">vs Year</span>
+              <select id="rcptVsYear" style="width:90px;"></select>
+            </div>
+            <div class="toolbar-group">
+              <span class="toolbar-label">Period</span>
+              <div class="period-selector" id="rcptPeriodSel"></div>
+            </div>
+            <div class="toolbar-group">
+              <span class="toolbar-label">Quarter</span>
+              <div class="period-selector" id="rcptQuarterSel">
+                <div class="period-btn" data-q="1" onclick="selectRcptQuarter(1)">Q1</div>
+                <div class="period-btn" data-q="2" onclick="selectRcptQuarter(2)">Q2</div>
+                <div class="period-btn" data-q="3" onclick="selectRcptQuarter(3)">Q3</div>
+                <div class="period-btn" data-q="4" onclick="selectRcptQuarter(4)">Q4</div>
+              </div>
+            </div>
+            <div class="flex-grow"></div>
+            <div class="toolbar-group">
+              <span class="toolbar-label">View</span>
+              <div class="period-selector" id="rcptMetricSel">
+                <div class="period-btn active" onclick="setReceiptMetric('received')">RECV</div>
+                <div class="period-btn" onclick="setReceiptMetric('cogs')">COGS</div>
+                <div class="period-btn" onclick="setReceiptMetric('produced')">PROD</div>
+                <div class="period-btn" onclick="setReceiptMetric('returned')">RET</div>
+              </div>
+            </div>
+            <button class="btn-sm accent" onclick="runReceiptsCompare()">COMPARE</button>
+            <button class="btn-sm" onclick="exportPDF('rcptCompare')" title="Export to PDF">⬇ PDF</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;width:100%;flex-wrap:wrap;padding-top:2px;border-top:1px solid var(--border);">
+            <span class="toolbar-label" style="white-space:nowrap;">Categories</span>
+            <div id="rcptCatFilter" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+            <span style="color:var(--text3);font-size:10px;font-family:'IBM Plex Mono',monospace;margin-left:4px;" id="rcptCatHint">all</span>
+          </div>
+        </div>
+
+        <div class="stats-bar" id="rcptCmpStats" style="display:none;"></div>
+
+        <div class="panel-scroll">
+          <div id="rcptCompareContent">
+            <div class="empty-state">
+              <div class="empty-icon">📦</div>
+              <div class="empty-title">No comparison yet</div>
+              <div class="empty-sub">Upload at least two years of Receipts CSV data, then select years and a period to compare.</div>
+            </div>
           </div>
         </div>
       </div>
@@ -918,6 +1026,7 @@
          ITEM DETAIL TAB
     ═══════════════════════════════════ -->
     <div class="panel" id="panel-items">
+      <div class="items-section" data-dtype="sales,issues">
       <div class="toolbar">
         <div class="toolbar-group" style="position:relative;">
           <span class="toolbar-label">Item</span>
@@ -950,12 +1059,49 @@
           </div>
         </div>
       </div>
+      </div>
+
+      <!-- RECEIPTS ITEM DETAIL -->
+      <div class="items-section" data-dtype="receipts" style="display:none;">
+        <div class="toolbar">
+          <div class="toolbar-group" style="position:relative;">
+            <span class="toolbar-label">Item</span>
+            <div style="position:relative;">
+              <input type="text" id="rcptItemDetailSearch" placeholder="Type code or description..." style="width:300px;" autocomplete="off">
+              <div id="rcptItemDetailSuggestions" style="display:none;position:absolute;top:100%;left:0;width:420px;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;z-index:500;max-height:260px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5);margin-top:2px;"></div>
+            </div>
+            <input type="hidden" id="rcptItemDetailSelect">
+          </div>
+          <div class="flex-grow"></div>
+          <div class="toolbar-group">
+            <span class="toolbar-label">View</span>
+            <div class="period-selector" id="rcptItemMetricSel">
+              <div class="period-btn active" onclick="setReceiptMetric('received','rcptItemMetricSel')">RECV</div>
+              <div class="period-btn" onclick="setReceiptMetric('cogs','rcptItemMetricSel')">COGS</div>
+              <div class="period-btn" onclick="setReceiptMetric('produced','rcptItemMetricSel')">PROD</div>
+              <div class="period-btn" onclick="setReceiptMetric('returned','rcptItemMetricSel')">RET</div>
+            </div>
+          </div>
+          <button class="btn-sm accent" onclick="runReceiptsItemDetail()">LOAD</button>
+          <button class="btn-sm" onclick="exportPDF('rcptItems')" title="Export to PDF">⬇ PDF</button>
+        </div>
+        <div class="panel-scroll">
+          <div id="rcptItemDetailContent">
+            <div class="empty-state">
+              <div class="empty-icon">🔍</div>
+              <div class="empty-title">Select a receipt item</div>
+              <div class="empty-sub">Choose any item code to see its full receipts history across all loaded years, with period breakdown and year-over-year chart.</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ═══════════════════════════════════
          CUSTOM COMPARE TAB
     ═══════════════════════════════════ -->
     <div class="panel" id="panel-custom">
+      <div class="custom-section" data-dtype="sales,issues">
       <div class="toolbar" style="flex-wrap:wrap;gap:8px;">
         <div style="display:flex;align-items:center;gap:10px;width:100%;flex-wrap:wrap;">
           <div class="toolbar-group">
@@ -1053,6 +1199,77 @@
           </div>
         </div>
       </div>
+      </div>
+
+      <!-- RECEIPTS CUSTOM -->
+      <div class="custom-section" data-dtype="receipts" style="display:none;">
+        <div class="toolbar" style="flex-wrap:wrap;gap:8px;">
+          <div style="display:flex;align-items:center;gap:10px;width:100%;flex-wrap:wrap;">
+            <div class="toolbar-group">
+              <span class="toolbar-label">Mode</span>
+              <div class="period-selector">
+                <div class="period-btn active" id="rcptCustomModeItems" onclick="setReceiptCustomMode('items')">ITEMS</div>
+                <div class="period-btn" id="rcptCustomModeCats" onclick="setReceiptCustomMode('categories')">CATEGORIES</div>
+              </div>
+            </div>
+            <div class="toolbar-group" id="rcptCustomSearchGroup" style="position:relative;">
+              <span class="toolbar-label">Add Item</span>
+              <div style="position:relative;">
+                <input type="text" id="rcptCustomSearch" placeholder="Type code or description..." style="width:260px;" autocomplete="off">
+                <div id="rcptCustomSuggestions" style="display:none;position:absolute;top:100%;left:0;width:420px;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;z-index:500;max-height:240px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5);margin-top:2px;"></div>
+              </div>
+            </div>
+            <div class="toolbar-group">
+              <span class="toolbar-label">Period</span>
+              <div class="period-selector" id="rcptCustomPeriodSel"></div>
+            </div>
+            <div class="toolbar-group">
+              <span class="toolbar-label">Quarter</span>
+              <div class="period-selector" id="rcptCustomQuarterSel">
+                <div class="period-btn" data-q="1" onclick="selectReceiptCustomQuarter(1)">Q1</div>
+                <div class="period-btn" data-q="2" onclick="selectReceiptCustomQuarter(2)">Q2</div>
+                <div class="period-btn" data-q="3" onclick="selectReceiptCustomQuarter(3)">Q3</div>
+                <div class="period-btn" data-q="4" onclick="selectReceiptCustomQuarter(4)">Q4</div>
+              </div>
+            </div>
+            <div class="flex-grow"></div>
+            <div class="toolbar-group">
+              <span class="toolbar-label">View</span>
+              <div class="period-selector" id="rcptCustomMetricSel">
+                <div class="period-btn active" onclick="setReceiptMetric('received','rcptCustomMetricSel')">RECV</div>
+                <div class="period-btn" onclick="setReceiptMetric('cogs','rcptCustomMetricSel')">COGS</div>
+                <div class="period-btn" onclick="setReceiptMetric('produced','rcptCustomMetricSel')">PROD</div>
+                <div class="period-btn" onclick="setReceiptMetric('returned','rcptCustomMetricSel')">RET</div>
+              </div>
+            </div>
+            <button class="btn-sm accent" onclick="runReceiptsCustomCompare()">COMPARE</button>
+            <button class="btn-sm" onclick="exportPDF('rcptCustom')" title="Export to PDF">⬇ PDF</button>
+          </div>
+          <div id="rcptCustomYearRow" style="display:flex;align-items:center;gap:8px;width:100%;flex-wrap:wrap;padding-top:2px;border-top:1px solid var(--border);">
+            <span class="toolbar-label">Years</span>
+            <div id="rcptCustomYearSel" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+          </div>
+          <div id="rcptCustomItemsRow" style="display:flex;align-items:center;gap:8px;width:100%;flex-wrap:wrap;padding-top:2px;border-top:1px solid var(--border);">
+            <span class="toolbar-label">Items</span>
+            <div id="rcptCustomItemChips" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+            <span id="rcptCustomItemsHint" style="color:var(--text3);font-size:10px;font-family:'IBM Plex Mono',monospace;">none added</span>
+          </div>
+          <div id="rcptCustomCatsRow" style="display:none;align-items:center;gap:8px;width:100%;flex-wrap:wrap;padding-top:2px;border-top:1px solid var(--border);">
+            <span class="toolbar-label">Categories</span>
+            <div id="rcptCustomCatChips" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+            <span id="rcptCustomCatsHint" style="color:var(--text3);font-size:10px;font-family:'IBM Plex Mono',monospace;">none selected</span>
+          </div>
+        </div>
+        <div class="panel-scroll">
+          <div id="rcptCustomContent">
+            <div class="empty-state">
+              <div class="empty-icon">🎯</div>
+              <div class="empty-title">Build your custom receipts comparison</div>
+              <div class="empty-sub">Add item codes using the search above, select which years to include, then hit COMPARE.</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ═══════════════════════════════════
@@ -1100,6 +1317,7 @@
       <div class="panel-scroll">
         <div style="padding:20px;max-width:900px;">
 
+          <div class="mgmt-section" data-dtype="sales">
           <!-- CATEGORIES -->
           <div style="margin-bottom:28px;">
             <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:12px;">Categories</div>
@@ -1130,9 +1348,9 @@
             </div>
             <div class="custom-labels-list" id="excludedCodesList" style="display:flex;flex-wrap:wrap;gap:6px;max-height:300px;overflow-y:auto;"></div>
           </div>
+          </div>
 
-          <div style="height:1px;background:var(--border);margin-bottom:24px;"></div>
-
+          <div class="mgmt-section" data-dtype="issues" style="display:none;">
           <!-- MATERIAL CATEGORIES -->
           <div style="margin-bottom:24px;">
             <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:12px;">Material Categories</div>
@@ -1157,6 +1375,40 @@
               <span style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;">ADDED BY YOU:</span>
               <div class="custom-labels-list" id="userAllowedMaterialCodesList" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;"></div>
             </div>
+          </div>
+          </div>
+
+          <div class="mgmt-section" data-dtype="receipts" style="display:none;">
+          <!-- RECEIPT CATEGORIES -->
+          <div style="margin-bottom:28px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:12px;">Receipt Categories</div>
+            <div id="receiptCatLegend" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:8px;align-items:start;"></div>
+          </div>
+
+          <div style="height:1px;background:var(--border);margin-bottom:24px;"></div>
+
+          <!-- RECEIPT CUSTOM LABELS -->
+          <div style="margin-bottom:24px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:10px;">Custom Receipt Category Labels</div>
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+              <input type="text" id="newReceiptLabelInput" placeholder="New label name..." style="width:200px;">
+              <button class="btn-sm accent" onclick="addReceiptCustomLabel()">+ Add Label</button>
+            </div>
+            <div class="custom-labels-list" id="receiptCustomLabelsList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+          </div>
+
+          <div style="height:1px;background:var(--border);margin-bottom:24px;"></div>
+
+          <!-- EXCLUDED RECEIPT CODES -->
+          <div style="margin-bottom:24px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:10px;">Excluded Receipt Codes</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">These codes are hidden from Receipts views.</div>
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+              <input type="text" id="newExcludeReceiptInput" placeholder="Item code..." style="width:200px;text-transform:uppercase;">
+              <button class="btn-sm accent" onclick="addExcludedReceiptCode()">+ Exclude</button>
+            </div>
+            <div class="custom-labels-list" id="excludedReceiptCodesList" style="display:flex;flex-wrap:wrap;gap:6px;max-height:300px;overflow-y:auto;"></div>
+          </div>
           </div>
 
         </div>
@@ -1202,6 +1454,18 @@ const state = {
   materialLabels: {},     // { itemCode: 'category' }
   matActiveCats: [],      // [] = all; selected mat categories filter
   allowedMaterialCodes: [], // [] = use default list; otherwise user-managed
+
+  // RECEIPTS (own independent category system — no prod-line auto-classify;
+  // items start Uncategorized and are manually sorted into custom categories)
+  receiptYears: {},        // { 2026: { items: [...] } }
+  receiptLabels: {},        // { itemCode: 'category' }
+  receiptCustomLabels: [],  // user-created receipt category names
+  renamedReceiptCats: {},   // { 'Original Name': 'New Name' }
+  excludedReceiptCodes: [],
+  receiptMetric: 'received', // 'received' | 'cogs' | 'produced' | 'returned'
+  receiptProjBasis: 'received', // 'received' | 'produced' — projection basis toggle
+  receiptActiveCats: [],
+  dataType: 'sales', // 'sales' | 'receipts' | 'issues' — top-level data-type tab
 };
 
 // Load from localStorage
@@ -1227,6 +1491,16 @@ function loadState() {
     if (matLabels) state.materialLabels = JSON.parse(matLabels);
     const allowedMat = localStorage.getItem('aii_wood_allowed_material_codes');
     if (allowedMat) state.allowedMaterialCodes = JSON.parse(allowedMat);
+    const receiptYears = localStorage.getItem('aii_wood_receipt_years');
+    if (receiptYears) state.receiptYears = JSON.parse(receiptYears);
+    const receiptLabels = localStorage.getItem('aii_wood_receipt_labels');
+    if (receiptLabels) state.receiptLabels = JSON.parse(receiptLabels);
+    const receiptCustom = localStorage.getItem('aii_wood_receipt_custom_labels');
+    if (receiptCustom) state.receiptCustomLabels = JSON.parse(receiptCustom);
+    const renamedReceiptCats = localStorage.getItem('aii_wood_renamed_receipt_cats');
+    if (renamedReceiptCats) state.renamedReceiptCats = JSON.parse(renamedReceiptCats);
+    const exclReceipt = localStorage.getItem('aii_wood_excluded_receipt_codes');
+    if (exclReceipt) state.excludedReceiptCodes = JSON.parse(exclReceipt);
   } catch(e) {}
 }
 function saveExcludedCodes() {
@@ -1266,6 +1540,25 @@ function saveAllowedMaterialCodes() {
 }
 function saveProjTargets() {
   localStorage.setItem('aii_wood_proj_targets', JSON.stringify(state.projTargets));
+}
+function saveReceiptYears() {
+  try {
+    localStorage.setItem('aii_wood_receipt_years', JSON.stringify(state.receiptYears));
+  } catch(e) {
+    alert('Could not save receipts data to localStorage (may be too large): ' + e.message);
+  }
+}
+function saveReceiptLabels() {
+  localStorage.setItem('aii_wood_receipt_labels', JSON.stringify(state.receiptLabels));
+}
+function saveReceiptCustomLabels() {
+  localStorage.setItem('aii_wood_receipt_custom_labels', JSON.stringify(state.receiptCustomLabels));
+}
+function saveRenamedReceiptCats() {
+  localStorage.setItem('aii_wood_renamed_receipt_cats', JSON.stringify(state.renamedReceiptCats));
+}
+function saveExcludedReceiptCodes() {
+  localStorage.setItem('aii_wood_excluded_receipt_codes', JSON.stringify(state.excludedReceiptCodes));
 }
 
 // ═══════════════════════════════════════════════
@@ -1448,6 +1741,78 @@ function parseCSVLine(line) {
 }
 
 // ═══════════════════════════════════════════════
+// RECEIPTS CSV PARSER (Inventory Receipts History Report)
+// ═══════════════════════════════════════════════
+// This report has NO per-row year column — it is single-year only, with the
+// year given in the "Year Equal To:" header. Each item appears on multiple
+// physical rows (one per warehouse), but every row for that item carries a
+// "Total For Item:" block that is ALREADY summed across all of that item's
+// warehouse rows — so we dedupe by item code (last-write, values are
+// identical across duplicate rows) rather than accumulating ourselves.
+function parseReceiptsCSV(text) {
+  const fallbackYearMatch = text.match(/Year Equal To:\s*(20\d{2})/);
+  const fallbackYear = fallbackYearMatch ? parseInt(fallbackYearMatch[1]) : null;
+
+  const lines = text.trim().split('\n');
+  const itemsMap = new Map();
+
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const cols = parseCSVLine(line);
+    if (cols.length < 60) continue;
+
+    const itemCode = cols[24] ? cols[24].trim() : '';
+    if (!itemCode) continue;
+    if (itemCode === 'Item Code') continue;
+    if (itemCode === 'Report Total:') continue;
+    if (itemCode.startsWith('Total For')) continue;
+
+    const description = cols[25] ? cols[25].trim() : '';
+    const prodLine = (cols[26] && cols[26].trim() === 'Prod Line:') ? (cols[27] ? cols[27].trim() : '') : '';
+
+    // Locate this row's "Total For Item:" marker — the block right after it
+    // holds the already-warehouse-summed Received/COGS/Produced/Returned values.
+    let ti = -1;
+    for (let i = 28; i < cols.length; i++) {
+      if (cols[i] && cols[i].trim().startsWith('Total For Item:')) { ti = i; break; }
+    }
+    if (ti === -1) continue;
+
+    function readBlock(labelOffset) {
+      const vals = [0,0,0,0,0,0,0,0,0,0,0,0];
+      const labelIdx = ti + labelOffset;
+      for (let p = 0; p < 12; p++) {
+        const raw = (cols[labelIdx + 1 + p] || '').trim().replace(/,/g,'');
+        const isNeg = raw.endsWith('-');
+        const num = parseInt(raw.replace('-','')) || 0;
+        vals[p] = isNeg ? -num : num;
+      }
+      return vals;
+    }
+    const received = readBlock(1);   // 'Quantity Received:' label at ti+1
+    const cogs = readBlock(15);      // 'Cost of Goods Received:' label at ti+15
+    const produced = readBlock(29);  // 'Quantity Produced:' label at ti+29
+    const returned = readBlock(43);  // 'Quantity Returned:' label at ti+43
+
+    if (!fallbackYear) continue;
+
+    // Dedupe: identical Total-For-Item values repeat on every row for this
+    // item, so overwrite rather than sum.
+    itemsMap.set(itemCode, { itemCode, description, prodLine, received, cogs, produced, returned });
+  }
+
+  const years = {};
+  if (itemsMap.size && fallbackYear) {
+    years[fallbackYear] = [...itemsMap.values()];
+  }
+  return { years };
+}
+
+function isReceiptsCSV(text) {
+  return text.includes('Inventory Receipts History Report');
+}
+
+// ═══════════════════════════════════════════════
 // ISSUE CSV PARSER (Inventory Issue History Report)
 // ═══════════════════════════════════════════════
 function parseIssueCSV(text) {
@@ -1531,7 +1896,20 @@ function handleFiles(files) {
     const reader = new FileReader();
     reader.onload = e => {
       const text = e.target.result;
-      if (isIssueCSV(text)) {
+      if (isReceiptsCSV(text)) {
+        // Receipts CSV
+        const { years } = parseReceiptsCSV(text);
+        if (!Object.keys(years).length) {
+          alert(`No receipts data found in: ${file.name}`);
+          return;
+        }
+        Object.entries(years).forEach(([yr, items]) => {
+          const filtered = items.filter(i => !state.excludedReceiptCodes.includes(i.itemCode));
+          state.receiptYears[parseInt(yr)] = { items: filtered, filename: file.name };
+        });
+        saveReceiptYears();
+        updateUI();
+      } else if (isIssueCSV(text)) {
         // Materials / Issue CSV
         const { years } = parseIssueCSV(text);
         if (!Object.keys(years).length) {
@@ -1558,7 +1936,7 @@ function handleFiles(files) {
         saveYears();
         updateUI();
       } else {
-        alert(`Unrecognized CSV format in: ${file.name}\nExpected an Inventory Sales History Report or Inventory Issue History Report.`);
+        alert(`Unrecognized CSV format in: ${file.name}\nExpected an Inventory Sales History Report, Inventory Receipts History Report, or Inventory Issue History Report.`);
       }
     };
     reader.readAsText(file);
@@ -1583,6 +1961,7 @@ function updateUI() {
   updateCmpCatFilter();
   updateProdLineFilter();
   updateItemDetailSelect();
+  updateReceiptItemDetailSelect();
   updateHeaderMeta(years);
   updatePeriodSelectors();
   updateCustomLabelsList();
@@ -1610,8 +1989,12 @@ function updateHeaderMeta(years) {
 function updateYearList(years) {
   const el = document.getElementById('yearList');
   const issueYears = getSortedIssueYears();
-  const allEmpty = !years.length && !issueYears.length;
-  if (allEmpty) { el.innerHTML = '<div class="text-muted" style="font-size:11px;">No files loaded</div>'; return; }
+  const receiptYears = getSortedReceiptYears();
+  const dt = state.dataType;
+  const relevantEmpty = (dt === 'sales' && !years.length) ||
+                         (dt === 'issues' && !issueYears.length) ||
+                         (dt === 'receipts' && !receiptYears.length);
+  if (relevantEmpty) { el.innerHTML = '<div class="text-muted" style="font-size:11px;">No files loaded</div>'; return; }
   const salesChips = years.map(y => {
     const count = state.years[y].items.length;
     return `<div class="year-chip">
@@ -1628,16 +2011,36 @@ function updateYearList(years) {
       <span class="y-remove" onclick="removeIssueYear(${y})">×</span>
     </div>`;
   }).join('');
-  el.innerHTML = salesChips + matChips;
+  const receiptChips = receiptYears.map(y => {
+    const count = state.receiptYears[y].items.length;
+    return `<div class="year-chip" style="border-color:#e0904044;">
+      <span class="y-label" style="color:#e09040;">${y}</span>
+      <span class="y-count" title="Receipts data" style="color:#e0904088;">▣ ${count} rcpt.</span>
+      <span class="y-remove" onclick="removeReceiptYear(${y})">×</span>
+    </div>`;
+  }).join('');
+  if (dt === 'sales') el.innerHTML = salesChips || '<div class="text-muted" style="font-size:11px;">No sales files loaded</div>';
+  else if (dt === 'issues') el.innerHTML = matChips || '<div class="text-muted" style="font-size:11px;">No issue files loaded</div>';
+  else if (dt === 'receipts') el.innerHTML = receiptChips || '<div class="text-muted" style="font-size:11px;">No receipts files loaded</div>';
 }
 
 function getSortedIssueYears() {
   return Object.keys(state.issueYears).map(Number).sort();
 }
 
+function getSortedReceiptYears() {
+  return Object.keys(state.receiptYears).map(Number).sort();
+}
+
 function removeIssueYear(year) {
   delete state.issueYears[year];
   saveIssueYears();
+  updateUI();
+}
+
+function removeReceiptYear(year) {
+  delete state.receiptYears[year];
+  saveReceiptYears();
   updateUI();
 }
 
@@ -1690,10 +2093,10 @@ function updatePeriodSelectors() {
     });
   }
   // Compare & Custom: multi-select toggle
-  ['cmpPeriodSel','customPeriodSel'].forEach(id => {
+  ['cmpPeriodSel','customPeriodSel','rcptPeriodSel','rcptCustomPeriodSel'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
-    const quartSelId = id === 'cmpPeriodSel' ? 'cmpQuarterSel' : 'customQuarterSel';
+    const quartSelId = id === 'cmpPeriodSel' ? 'cmpQuarterSel' : (id === 'rcptPeriodSel' ? 'rcptQuarterSel' : (id === 'rcptCustomPeriodSel' ? 'rcptCustomQuarterSel' : 'customQuarterSel'));
     el.innerHTML = '<div class="period-btn active" data-p="0">ALL</div>' +
       Array.from({length:12},(_,i)=>`<div class="period-btn" data-p="${i+1}">P${i+1}</div>`).join('');
     const allBtn = el.querySelector('.period-btn[data-p="0"]');
@@ -2362,6 +2765,112 @@ document.addEventListener('click', e => {
 });
 
 // ═══════════════════════════════════════════════
+// TOP-LEVEL DATA TYPE TABS (Sales / Receipts / Issues)
+// ═══════════════════════════════════════════════
+// The old per-tab SALES/MATERIALS toggles are superseded by this top-level
+// selector now, so hide them (they still exist under the hood — cmpMode /
+// itemSearchMode / customDataMode — driven programmatically below).
+function hideLegacyModeToggles() {
+  ['cmpModeSales', 'customDataSales'].forEach(id => {
+    const el = document.getElementById(id);
+    const grp = el && el.closest('.toolbar-group');
+    if (grp) grp.style.display = 'none';
+  });
+  // itemSearchSales/Materials share their .toolbar-group with the search
+  // input itself, so hide only the toggle (.period-selector), not the group —
+  // hiding the whole group also hid the search box.
+  const itemSearchEl = document.getElementById('itemSearchSales');
+  const itemSearchToggle = itemSearchEl && itemSearchEl.closest('.period-selector');
+  if (itemSearchToggle) itemSearchToggle.style.display = 'none';
+}
+
+function updateManageSectionsVisibility() {
+  document.querySelectorAll('#panel-manage > .panel-scroll .mgmt-section').forEach(sec => {
+    sec.style.display = (sec.dataset.dtype === state.dataType) ? '' : 'none';
+  });
+  if (state.dataType === 'receipts') updateReceiptManageLegend();
+}
+
+function updateCompareSectionsVisibility() {
+  document.querySelectorAll('#panel-compare > .cmp-section').forEach(sec => {
+    const types = sec.dataset.dtype.split(',');
+    sec.style.display = types.includes(state.dataType) ? '' : 'none';
+  });
+  if (state.dataType === 'receipts') {
+    updateReceiptYearSelects();
+    updateReceiptCatFilter();
+  }
+}
+
+function updateItemsSectionsVisibility() {
+  document.querySelectorAll('#panel-items > .items-section').forEach(sec => {
+    const types = sec.dataset.dtype.split(',');
+    sec.style.display = types.includes(state.dataType) ? '' : 'none';
+  });
+}
+
+function updateCustomSectionsVisibility() {
+  document.querySelectorAll('#panel-custom > .custom-section').forEach(sec => {
+    const types = sec.dataset.dtype.split(',');
+    sec.style.display = types.includes(state.dataType) ? '' : 'none';
+  });
+  if (state.dataType === 'receipts') updateReceiptCustomYearSel();
+}
+
+function setDataTypeSectionVisibility(panelId, dataTypesAllowed) {
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+  const show = dataTypesAllowed.includes(state.dataType);
+  let ph = panel.querySelector(':scope > .dtype-placeholder-auto');
+  const kids = Array.from(panel.children).filter(c => c !== ph);
+  if (show) {
+    kids.forEach(k => k.style.display = '');
+    if (ph) ph.style.display = 'none';
+  } else {
+    kids.forEach(k => k.style.display = 'none');
+    if (!ph) {
+      ph = document.createElement('div');
+      ph.className = 'dtype-placeholder-auto empty-state';
+      ph.style.cssText = 'flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;';
+      ph.innerHTML = '<div class="empty-icon">🚧</div><div class="empty-title">Coming soon</div><div class="empty-sub">This view for the selected data type is being built in a follow-up update.</div>';
+      panel.appendChild(ph);
+    }
+    ph.style.display = 'flex';
+  }
+}
+
+function setDataType(type) {
+  state.dataType = type;
+  document.querySelectorAll('.toplevel-tab').forEach(t => t.classList.toggle('active', t.dataset.dtype === type));
+
+  const marginsTab = document.querySelector('.tab[data-tab="margins"]');
+  const projTab = document.querySelector('.tab[data-tab="projections"]');
+  if (marginsTab) marginsTab.style.display = (type === 'sales') ? '' : 'none';
+  if (projTab) projTab.style.display = (type === 'sales') ? 'none' : '';
+
+  // If the currently active sub-tab just got hidden, fall back to Compare
+  const activeTab = document.querySelector('.tab.active');
+  if (activeTab && activeTab.style.display === 'none') {
+    document.querySelector('.tab[data-tab="compare"]').click();
+  }
+
+  // Sync legacy per-tab mode variables for the data types that already have
+  // full implementations (Sales, Issues == old "materials" mode)
+  if (type === 'sales') { setCmpMode('sales'); setItemSearchMode('sales'); setCustomDataMode('sales'); }
+  else if (type === 'issues') { setCmpMode('materials'); setItemSearchMode('materials'); setCustomDataMode('materials'); }
+
+  updateCompareSectionsVisibility();
+  setDataTypeSectionVisibility('panel-trends', ['sales', 'issues']);
+  updateItemsSectionsVisibility();
+  updateCustomSectionsVisibility();
+  updateManageSectionsVisibility();
+  setDataTypeSectionVisibility('panel-projections', []); // Issues/Receipts projections built in a follow-up stage
+
+  updateYearList(getSortedYears());
+  refreshCurrentPanel();
+}
+
+// ═══════════════════════════════════════════════
 // TABS
 // ═══════════════════════════════════════════════
 document.querySelectorAll('.tab').forEach(tab => {
@@ -2373,6 +2882,8 @@ document.querySelectorAll('.tab').forEach(tab => {
   });
 });
 
+hideLegacyModeToggles();
+
 function getActiveTab() {
   const t = document.querySelector('.tab.active');
   return t ? t.dataset.tab : 'compare';
@@ -2380,10 +2891,10 @@ function getActiveTab() {
 
 function refreshCurrentPanel() {
   const tab = getActiveTab();
-  if (tab === 'compare') runCompare();
+  if (tab === 'compare') { if (state.dataType === 'receipts') runReceiptsCompare(); else runCompare(); }
   else if (tab === 'trends') runTrends();
   else if (tab === 'projections') runProjections();
-  else if (tab === 'items') runItemDetail();
+  else if (tab === 'items') { if (state.dataType === 'receipts') runReceiptsItemDetail(); else runItemDetail(); }
   else if (tab === 'margins') runMarginRankings();
 }
 
@@ -2684,6 +3195,253 @@ function updateExcludedMaterialCodesList() {
 }
 
 // ═══════════════════════════════════════════════
+// RECEIPTS — OWN INDEPENDENT CATEGORY SYSTEM
+// ═══════════════════════════════════════════════
+const RECEIPT_DEFAULT_CAT = 'Uncategorized';
+let _expandedReceiptCat = null;
+
+function getAllReceiptItems() {
+  const itemMap = new Map();
+  getSortedReceiptYears().forEach(y => {
+    state.receiptYears[y].items.forEach(item => {
+      if (!itemMap.has(item.itemCode)) itemMap.set(item.itemCode, item);
+    });
+  });
+  return [...itemMap.values()];
+}
+
+function getReceiptCat(itemCode) {
+  if (state.receiptLabels[itemCode]) return state.receiptLabels[itemCode];
+  return state.renamedReceiptCats[RECEIPT_DEFAULT_CAT] || RECEIPT_DEFAULT_CAT;
+}
+
+// Categories with at least one loaded, non-excluded item — for display (legend, filters)
+function getAllReceiptCategories() {
+  const defaultCat = state.renamedReceiptCats[RECEIPT_DEFAULT_CAT] || RECEIPT_DEFAULT_CAT;
+  const cats = new Set([defaultCat]);
+  getAllReceiptItems().forEach(item => cats.add(getReceiptCat(item.itemCode)));
+  return [...cats];
+}
+
+// Categories for reassignment dropdowns — includes empty custom labels too,
+// so a brand-new category you just created is still selectable before you've
+// assigned anything to it.
+function getAssignableReceiptCategories() {
+  const cats = new Set(getAllReceiptCategories());
+  state.receiptCustomLabels.forEach(c => cats.add(c));
+  return [...cats];
+}
+
+function getReceiptCatColor(cat) {
+  const palette = ['#e09040','#5b9bd5','#9b7fd4','#7da87d','#4cb8b8','#e8c46a','#e05c5c','#d45b9b'];
+  const cats = getAssignableReceiptCategories();
+  const idx = cats.indexOf(cat);
+  return palette[(idx >= 0 ? idx : 0) % palette.length] || '#666';
+}
+
+function updateReceiptManageLegend() {
+  const el = document.getElementById('receiptCatLegend');
+  if (!el) return;
+
+  const allItems = getAllReceiptItems();
+  const cats = getAllReceiptCategories();
+  const catItems = {};
+  cats.forEach(c => { catItems[c] = []; });
+  allItems.forEach(item => {
+    const cat = getReceiptCat(item.itemCode);
+    if (!catItems[cat]) catItems[cat] = [];
+    catItems[cat].push(item);
+  });
+
+  el.innerHTML = cats.map(cat => {
+    const color = getReceiptCatColor(cat);
+    const items = catItems[cat] || [];
+    const isExpanded = _expandedReceiptCat === cat;
+    const itemRows = isExpanded ? `
+      <div class="cat-expand-list">
+        ${items.map(item => {
+          const code = item.itemCode;
+          const desc = item.description ? item.description.slice(0,34) : '';
+          return `<div class="cat-expand-row">
+            <span class="cat-expand-code" style="color:${color};">${code}</span>
+            <span class="cat-expand-desc" title="${item.description||''}">${desc}</span>
+            <div class="cat-expand-actions">
+              <span class="cat-expand-btn" title="Reassign category"
+                onclick="event.stopPropagation();showReceiptCatDropdown('${code}',event.clientX,event.clientY)">⇄</span>
+              <span class="cat-expand-btn cat-expand-exclude" title="Exclude this code"
+                onclick="event.stopPropagation();excludeReceiptFromLegend('${code}')">✕</span>
+            </div>
+          </div>`;
+        }).join('')}
+        ${items.length === 0 ? '<div style="color:var(--text3);font-size:10px;padding:4px 6px;">No items</div>' : ''}
+      </div>` : '';
+
+    return `<div style="${isExpanded?'grid-column:1/-1;':''}">
+      <div class="cat-item ${isExpanded?'active':''}" onclick="toggleReceiptCatExpand('${cat}')">
+        <div class="cat-dot" style="background:${color}"></div>
+        <span class="cat-name">${cat}</span>
+        <span class="cat-count">${items.length}</span>
+        <span class="cat-expand-btn" title="Rename category" style="margin-left:4px;font-size:11px;" onclick="event.stopPropagation();startRenameReceiptCategory('${cat}', this)">✎</span>
+        <span style="color:var(--text3);font-size:10px;margin-left:2px;">${isExpanded?'▲':'▼'}</span>
+      </div>${itemRows}
+    </div>`;
+  }).join('');
+}
+
+function toggleReceiptCatExpand(cat) {
+  _expandedReceiptCat = _expandedReceiptCat === cat ? null : cat;
+  updateReceiptManageLegend();
+}
+
+function startRenameReceiptCategory(cat, btn) {
+  const catItem = btn.closest('.cat-item');
+  const nameSpan = catItem.querySelector('.cat-name');
+  const oldName = nameSpan.textContent;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = oldName;
+  input.style.cssText = 'width:140px;font-size:11px;padding:2px 6px;background:var(--surface3);border:1px solid var(--accent);color:var(--text);border-radius:3px;font-family:IBM Plex Mono,monospace;';
+  input.onclick = e => e.stopPropagation();
+  nameSpan.replaceWith(input);
+  input.focus();
+  input.select();
+  const commit = () => {
+    const newName = input.value.trim();
+    if (newName && newName !== oldName) renameReceiptCategory(oldName, newName);
+    else updateReceiptManageLegend();
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { input.value = oldName; input.blur(); }
+    e.stopPropagation();
+  });
+}
+
+function renameReceiptCategory(oldName, newName) {
+  newName = newName.trim();
+  if (!newName || newName === oldName) return;
+  const currentDefaultDisplay = state.renamedReceiptCats[RECEIPT_DEFAULT_CAT] || RECEIPT_DEFAULT_CAT;
+  if (oldName === currentDefaultDisplay) {
+    state.renamedReceiptCats[RECEIPT_DEFAULT_CAT] = newName;
+  }
+  Object.keys(state.receiptLabels).forEach(k => {
+    if (state.receiptLabels[k] === oldName) state.receiptLabels[k] = newName;
+  });
+  const ci = state.receiptCustomLabels.indexOf(oldName);
+  if (ci !== -1) state.receiptCustomLabels[ci] = newName;
+  if (_expandedReceiptCat === oldName) _expandedReceiptCat = newName;
+  saveRenamedReceiptCats();
+  saveReceiptLabels();
+  saveReceiptCustomLabels();
+  updateReceiptManageLegend();
+  updateReceiptCustomLabelsList();
+}
+
+function showReceiptCatDropdown(code, x, y) {
+  const dd = document.getElementById('catDropdown');
+  const cats = getAssignableReceiptCategories();
+  const current = getReceiptCat(code);
+  dd.innerHTML = cats.map(c => {
+    const color = getReceiptCatColor(c);
+    return `<div class="cat-select-opt ${c===current?'active':''}" onclick="assignReceiptCat('${code}','${c}')">
+      <div class="cat-dot" style="background:${color};"></div>
+      ${c}${c===current?' ✓':''}
+    </div>`;
+  }).join('') +
+  `<div class="cat-select-opt" style="border-top:1px solid var(--border);color:var(--text3);" onclick="clearReceiptCat('${code}')">↩ Reset to default</div>`;
+  dd.style.left = x+'px';
+  dd.style.top = y+'px';
+  dd.style.display = 'block';
+}
+
+function assignReceiptCat(code, cat) {
+  state.receiptLabels[code] = cat;
+  saveReceiptLabels();
+  hideCatDropdown();
+  updateReceiptManageLegend();
+}
+
+function clearReceiptCat(code) {
+  delete state.receiptLabels[code];
+  saveReceiptLabels();
+  hideCatDropdown();
+  updateReceiptManageLegend();
+}
+
+function excludeReceiptFromLegend(code) {
+  if (!state.excludedReceiptCodes.includes(code)) {
+    state.excludedReceiptCodes.push(code);
+    saveExcludedReceiptCodes();
+    getSortedReceiptYears().forEach(y => {
+      state.receiptYears[y].items = state.receiptYears[y].items.filter(i => i.itemCode !== code);
+    });
+    saveReceiptYears();
+    updateExcludedReceiptCodesList();
+    updateReceiptManageLegend();
+  }
+}
+
+function addReceiptCustomLabel() {
+  const input = document.getElementById('newReceiptLabelInput');
+  const val = input.value.trim();
+  if (!val || state.receiptCustomLabels.includes(val)) return;
+  state.receiptCustomLabels.push(val);
+  saveReceiptCustomLabels();
+  input.value = '';
+  updateReceiptManageLegend();
+  updateReceiptCustomLabelsList();
+}
+
+function removeReceiptCustomLabel(label) {
+  state.receiptCustomLabels = state.receiptCustomLabels.filter(l => l !== label);
+  saveReceiptCustomLabels();
+  updateReceiptCustomLabelsList();
+  updateReceiptManageLegend();
+}
+
+function updateReceiptCustomLabelsList() {
+  const el = document.getElementById('receiptCustomLabelsList');
+  if (!el) return;
+  el.innerHTML = state.receiptCustomLabels.map(l =>
+    `<div class="custom-label-tag" onclick="removeReceiptCustomLabel('${l}')">
+      <span>${l}</span><span class="del-label">×</span>
+    </div>`
+  ).join('');
+}
+
+function addExcludedReceiptCode() {
+  const input = document.getElementById('newExcludeReceiptInput');
+  const val = input.value.trim().toUpperCase();
+  if (!val || state.excludedReceiptCodes.includes(val)) return;
+  state.excludedReceiptCodes.push(val);
+  saveExcludedReceiptCodes();
+  getSortedReceiptYears().forEach(y => {
+    state.receiptYears[y].items = state.receiptYears[y].items.filter(i => i.itemCode !== val);
+  });
+  saveReceiptYears();
+  input.value = '';
+  updateExcludedReceiptCodesList();
+  updateReceiptManageLegend();
+}
+
+function removeExcludedReceiptCode(code) {
+  state.excludedReceiptCodes = state.excludedReceiptCodes.filter(c => c !== code);
+  saveExcludedReceiptCodes();
+  updateExcludedReceiptCodesList();
+}
+
+function updateExcludedReceiptCodesList() {
+  const el = document.getElementById('excludedReceiptCodesList');
+  if (!el) return;
+  el.innerHTML = state.excludedReceiptCodes.map(c =>
+    `<div class="custom-label-tag" onclick="removeExcludedReceiptCode('${c}')">
+      <span>${c}</span><span class="del-label">×</span>
+    </div>`
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════
 // COMPARE TAB
 // ═══════════════════════════════════════════════
 let compareChartInst = null;
@@ -2931,6 +3689,202 @@ function runMaterialsCompare() {
       </table>
     </div>
     ${rows.length === 0 ? '<div class="no-data">No material items match current filters.</div>' : ''}
+  `;
+}
+
+// ═══════════════════════════════════════════════
+// RECEIPTS COMPARE TAB
+// ═══════════════════════════════════════════════
+function getReceiptItemMetric(item, period) {
+  if (!item) return 0;
+  const arr = item[state.receiptMetric]; // 'received' | 'cogs' | 'produced' | 'returned'
+  if (!arr) return 0;
+  if (period === 0) return arr.reduce((a,b)=>a+b, 0);
+  return arr[period-1] || 0;
+}
+function getReceiptPeriodsMetric(item, periods) {
+  if (!periods || periods.length === 0) return getReceiptItemMetric(item, 0);
+  return periods.reduce((sum, p) => sum + getReceiptItemMetric(item, p), 0);
+}
+function getReceiptMetricLabel() {
+  if (state.receiptMetric === 'received') return 'Qty Received';
+  if (state.receiptMetric === 'cogs') return 'COGS';
+  if (state.receiptMetric === 'produced') return 'Qty Produced';
+  return 'Qty Returned';
+}
+function fmtReceiptMetric(n) {
+  return state.receiptMetric === 'cogs' ? fmtMoney(n) : fmt(n);
+}
+function setReceiptMetric(m, selId) {
+  selId = selId || 'rcptMetricSel';
+  state.receiptMetric = m;
+  document.querySelectorAll(`#${selId} .period-btn`).forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  if (document.getElementById('rcptCompareContent')?.querySelector('table')) runReceiptsCompare();
+  if (document.getElementById('rcptCustomContent')?.querySelector('table')) runReceiptsCustomCompare();
+  if (document.getElementById('rcptItemTbody')) {
+    renderReceiptItemTable();
+    renderReceiptItemChart();
+    renderReceiptItemTotalChart();
+  }
+}
+function selectRcptQuarter(q) {
+  const qps = QUARTER_PERIODS[q];
+  const el = document.getElementById('rcptPeriodSel');
+  const allBtn = el.querySelector('.period-btn[data-p="0"]');
+  const current = getActivePeriods('rcptPeriodSel');
+  const allIn = qps.every(p => current.includes(p));
+  qps.forEach(p => {
+    const btn = el.querySelector(`.period-btn[data-p="${p}"]`);
+    if (btn) btn.classList.toggle('active', !allIn);
+  });
+  const anyActive = getActivePeriods('rcptPeriodSel').length > 0;
+  allBtn.classList.toggle('active', !anyActive);
+  updateQuarterHighlights('rcptQuarterSel', 'rcptPeriodSel');
+}
+function updateReceiptYearSelects() {
+  const years = getSortedReceiptYears();
+  ['rcptBaseYear','rcptVsYear'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cur = el.value;
+    el.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+    if (cur && years.map(String).includes(cur)) el.value = cur;
+  });
+  if (years.length >= 2) {
+    document.getElementById('rcptBaseYear').value = years[years.length-2];
+    document.getElementById('rcptVsYear').value = years[years.length-1];
+  } else if (years.length === 1) {
+    document.getElementById('rcptBaseYear').value = years[0];
+    document.getElementById('rcptVsYear').value = years[0];
+  }
+}
+function updateReceiptCatFilter() {
+  const el = document.getElementById('rcptCatFilter');
+  if (!el) return;
+  const cats = getAllReceiptCategories();
+  el.innerHTML = cats.map(cat => {
+    const color = getReceiptCatColor(cat);
+    const active = state.receiptActiveCats.includes(cat);
+    return `<div class="period-btn ${active ? 'active' : ''}" data-cat="${cat}"
+      style="${active ? `background:${color};border-color:${color};color:#000;` : `border-color:${color}44;color:${color};`}"
+      onclick="toggleRcptCat('${cat}')">${cat}</div>`;
+  }).join('');
+  const hint = document.getElementById('rcptCatHint');
+  if (hint) hint.textContent = state.receiptActiveCats.length === 0 ? 'all' : state.receiptActiveCats.join(' + ');
+}
+function toggleRcptCat(cat) {
+  const idx = state.receiptActiveCats.indexOf(cat);
+  if (idx === -1) state.receiptActiveCats.push(cat);
+  else state.receiptActiveCats.splice(idx, 1);
+  updateReceiptCatFilter();
+  runReceiptsCompare();
+}
+
+function runReceiptsCompare() {
+  const baseYear = parseInt(document.getElementById('rcptBaseYear')?.value);
+  const vsYear   = parseInt(document.getElementById('rcptVsYear')?.value);
+  const periods  = getActivePeriods('rcptPeriodSel');
+
+  if (!baseYear || !vsYear) {
+    document.getElementById('rcptCompareContent').innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">No receipts data</div><div class="empty-sub">Upload Inventory Receipts History Report CSV files to use this view.</div></div>';
+    return;
+  }
+  if (!state.receiptYears[baseYear] || !state.receiptYears[vsYear]) {
+    document.getElementById('rcptCompareContent').innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Missing receipts year data</div><div class="empty-sub">Load both years first.</div></div>';
+    return;
+  }
+
+  // Build unified item list across both years
+  const allCodes = new Map();
+  [baseYear, vsYear].forEach(y => {
+    state.receiptYears[y].items.forEach(item => {
+      if (!allCodes.has(item.itemCode)) allCodes.set(item.itemCode, item);
+    });
+  });
+
+  const getVal = (year, code) => {
+    const yearData = state.receiptYears[year];
+    if (!yearData) return 0;
+    const item = yearData.items.find(i => i.itemCode === code);
+    if (!item) return 0;
+    return getReceiptPeriodsMetric(item, periods);
+  };
+
+  const rows = [];
+  let totalBase = 0, totalVs = 0;
+
+  allCodes.forEach((item, code) => {
+    const cat = getReceiptCat(code);
+    if (state.receiptActiveCats.length > 0 && !state.receiptActiveCats.includes(cat)) return;
+    const baseQty = getVal(baseYear, code);
+    const vsQty   = getVal(vsYear, code);
+    if (baseQty === 0 && vsQty === 0) return;
+    const pct = calcPct(baseQty, vsQty);
+    rows.push({ ...item, baseQty, vsQty, pct, cat });
+    totalBase += baseQty;
+    totalVs   += vsQty;
+  });
+
+  // Sort
+  if (state.sortCol) {
+    rows.sort((a,b) => {
+      let va = a[state.sortCol], vb = b[state.sortCol];
+      if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+      if (va === null) va = Infinity; if (vb === null) vb = Infinity;
+      return state.sortDir === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
+    });
+  }
+
+  const totalPct = calcPct(totalBase, totalVs);
+  const periodLabel = getPeriodsLabel(periods);
+  const metricLabel = getReceiptMetricLabel();
+
+  const statsEl = document.getElementById('rcptCmpStats');
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = `
+    <div class="stat-card"><div class="stat-label">Items Compared</div><div class="stat-value">${rows.length}</div><div class="stat-sub">filtered</div></div>
+    <div class="stat-card"><div class="stat-label">${baseYear} Total</div><div class="stat-value">${fmtReceiptMetric(totalBase)}</div><div class="stat-sub">${periodLabel} · ${metricLabel}</div></div>
+    <div class="stat-card"><div class="stat-label">${vsYear} Total</div><div class="stat-value">${fmtReceiptMetric(totalVs)}</div><div class="stat-sub">${periodLabel} · ${metricLabel}</div></div>
+    <div class="stat-card"><div class="stat-label">Change</div><div class="stat-value" style="color:${totalPct>=0?'var(--green)':'var(--red)'}">${fmtPct(totalPct)}</div><div class="stat-sub">${(totalVs-totalBase).toLocaleString()}</div></div>
+  `;
+
+  const thStyle = col => `onclick="sortTable('${col}')" class="${state.sortCol===col?(state.sortDir==='asc'?'sorted-asc':'sorted-desc'):''}"`;
+
+  document.getElementById('rcptCompareContent').innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th ${thStyle('itemCode')}>Item Code</th>
+            <th>Description</th>
+            <th>Category</th>
+            <th ${thStyle('prodLine')}>Prod Line</th>
+            <th ${thStyle('baseQty')} style="text-align:right">${baseYear} ${metricLabel} ${periodLabel}</th>
+            <th ${thStyle('vsQty')} style="text-align:right">${vsYear} ${metricLabel} ${periodLabel}</th>
+            <th ${thStyle('pct')} style="text-align:right">Change</th>
+            <th style="text-align:right">Diff</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => {
+            const color = getReceiptCatColor(r.cat);
+            return `<tr>
+              <td class="td-code">${r.itemCode}</td>
+              <td class="td-desc" title="${r.description}">${r.description||'—'}</td>
+              <td><span class="cat-badge" style="background:${color}22;color:${color};border-color:${color}44;"
+                onclick="event.stopPropagation();showReceiptCatDropdown('${r.itemCode}',event.clientX,event.clientY)">${r.cat}</span></td>
+              <td class="text-muted mono">${r.prodLine||'—'}</td>
+              <td class="td-num ${r.baseQty===0?'zero':''}">${fmtReceiptMetric(r.baseQty)}</td>
+              <td class="td-num ${r.vsQty===0?'zero':''}">${fmtReceiptMetric(r.vsQty)}</td>
+              <td class="td-pct ${pctClass(r.pct)}">${fmtPct(r.pct)}</td>
+              <td class="td-num" style="color:${r.vsQty-r.baseQty>=0?'var(--green)':'var(--red)'}">${r.vsQty-r.baseQty>=0?'+':''}${fmtReceiptMetric(r.vsQty-r.baseQty)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    ${rows.length === 0 ? '<div class="no-data">No receipt items match current filters.</div>' : ''}
   `;
 }
 
@@ -3868,6 +4822,267 @@ function renderItemMatChart() {
 }
 
 
+// ═══════════════════════════════════════════════
+// RECEIPTS ITEM DETAIL
+// ═══════════════════════════════════════════════
+let _receiptItemDetailAll = [];
+
+function updateReceiptItemDetailSelect() {
+  _receiptItemDetailAll = getAllReceiptItems()
+    .filter(item => !state.excludedReceiptCodes.includes(item.itemCode))
+    .sort((a, b) => a.itemCode.localeCompare(b.itemCode));
+}
+
+function initReceiptItemDetailTypeahead() {
+  const input = document.getElementById('rcptItemDetailSearch');
+  const suggestions = document.getElementById('rcptItemDetailSuggestions');
+  const hidden = document.getElementById('rcptItemDetailSelect');
+  if (!input) return;
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    if (!q) { suggestions.style.display = 'none'; return; }
+    const matches = _receiptItemDetailAll.filter(i =>
+      i.itemCode.toLowerCase().includes(q) ||
+      (i.description && i.description.toLowerCase().includes(q))
+    ).slice(0, 40);
+
+    if (!matches.length) { suggestions.style.display = 'none'; return; }
+
+    suggestions.innerHTML = matches.map(i => {
+      const code = i.itemCode;
+      const desc = i.description ? ' — ' + i.description.slice(0, 55) : '';
+      return `<div class="item-suggestion" data-code="${code}" style="
+        padding:7px 12px;cursor:pointer;font-size:11px;font-family:'IBM Plex Mono',monospace;
+        border-bottom:1px solid var(--border);transition:background 0.1s;
+        display:flex;gap:8px;align-items:baseline;
+      ">
+        <span style="color:#e09040;font-weight:600;">${code}</span>
+        <span style="color:var(--text3);font-size:10px;">${desc}</span>
+      </div>`;
+    }).join('');
+
+    suggestions.style.display = 'block';
+
+    suggestions.querySelectorAll('.item-suggestion').forEach(el => {
+      el.addEventListener('mouseenter', () => el.style.background = 'var(--surface3)');
+      el.addEventListener('mouseleave', () => el.style.background = '');
+      el.addEventListener('mousedown', e => {
+        e.preventDefault();
+        const code = el.dataset.code;
+        hidden.value = code;
+        const item = _receiptItemDetailAll.find(i => i.itemCode === code);
+        input.value = code + (item && item.description ? ' — ' + item.description.slice(0,55) : '');
+        suggestions.style.display = 'none';
+        runReceiptsItemDetail();
+      });
+    });
+  });
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Escape') suggestions.style.display = 'none';
+    if (e.key === 'Enter') {
+      const focused = suggestions.querySelector('.item-suggestion.focused');
+      const target = focused || suggestions.querySelector('.item-suggestion');
+      if (target) { e.preventDefault(); target.dispatchEvent(new MouseEvent('mousedown')); }
+    }
+    if (e.key === 'Tab' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const items = [...suggestions.querySelectorAll('.item-suggestion')];
+      const focused = suggestions.querySelector('.item-suggestion.focused');
+      const idx = focused ? items.indexOf(focused) : -1;
+      if (focused) focused.classList.remove('focused'), focused.style.background = '';
+      const next = items[idx + 1] || items[0];
+      if (next) { next.classList.add('focused'); next.style.background = 'var(--surface3)'; next.scrollIntoView({block:'nearest'}); }
+    }
+    if (e.key === 'ArrowUp') {
+      const items = [...suggestions.querySelectorAll('.item-suggestion')];
+      const focused = suggestions.querySelector('.item-suggestion.focused');
+      const idx = focused ? items.indexOf(focused) : items.length;
+      if (focused) focused.classList.remove('focused'), focused.style.background = '';
+      const prev = items[idx - 1] || items[items.length - 1];
+      if (prev) { prev.classList.add('focused'); prev.style.background = 'var(--surface3)'; prev.scrollIntoView({block:'nearest'}); }
+    }
+  });
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#rcptItemDetailSuggestions') && e.target.id !== 'rcptItemDetailSearch') {
+      suggestions.style.display = 'none';
+    }
+  });
+}
+
+function runReceiptsItemDetail() {
+  const code = document.getElementById('rcptItemDetailSelect').value;
+  if (!code) return;
+  const years = getSortedReceiptYears();
+  if (!years.length) return;
+
+  const yearData = years.map(y => {
+    const item = state.receiptYears[y]?.items.find(i => i.itemCode === code);
+    return {
+      year: y,
+      received: item ? item.received : Array(12).fill(0),
+      cogs: item ? item.cogs : Array(12).fill(0),
+      produced: item ? item.produced : Array(12).fill(0),
+      returned: item ? item.returned : Array(12).fill(0),
+      description: item?.description || '',
+      prodLine: item?.prodLine || '',
+    };
+  });
+
+  const hasAny = yearData.some(yd => ['received','cogs','produced','returned'].some(k => yd[k].some(v => v !== 0)));
+  if (!hasAny) {
+    document.getElementById('rcptItemDetailContent').innerHTML = `
+      <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px;">
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#e09040;">${code}</div>
+          <div style="color:var(--text2);font-size:13px;margin-top:2px;">No receipts data found for this code.</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const meta = yearData.find(yd => yd.description) || yearData[0];
+  const cat = getReceiptCat(code);
+  const color = getReceiptCatColor(cat);
+
+  document.getElementById('rcptItemDetailContent').innerHTML = `
+    <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#e09040;">${code}</div>
+        <div style="color:var(--text2);font-size:13px;margin-top:2px;">${meta.description||''}</div>
+        <div style="margin-top:6px;display:flex;gap:8px;align-items:center;">
+          <span class="cat-badge" style="background:${color}22;color:${color};border-color:${color}44;cursor:pointer;"
+            onclick="showReceiptCatDropdown('${code}',event.clientX,event.clientY)">${cat}</span>
+          <span class="text-muted mono" style="font-size:10px;">Prod Line: ${meta.prodLine||'—'} · Receipts Data</span>
+        </div>
+      </div>
+    </div>
+    <div class="table-wrap" style="margin-bottom:20px;">
+      <table>
+        <thead>
+          <tr>
+            <th title="Click year to hide/show">Year</th>
+            ${Array.from({length:12},(_,i)=>`<th style="text-align:right">P${i+1}</th>`).join('')}
+            <th style="text-align:right">Total</th>
+          </tr>
+        </thead>
+        <tbody id="rcptItemTbody" data-yeardata='${JSON.stringify(yearData).replace(/'/g, "&#39;")}'></tbody>
+      </table>
+    </div>
+    <div class="chart-card full" style="margin-bottom:16px;">
+      <div class="chart-title" id="rcptItemChartTitle">${getReceiptMetricLabel()} — Year Over Year</div>
+      <div class="chart-container tall"><canvas id="rcptItemChart"></canvas></div>
+    </div>
+    <div class="chart-card" style="margin-bottom:16px;">
+      <div class="chart-title" id="rcptItemTotalChartTitle">Annual Totals — ${getReceiptMetricLabel()}</div>
+      <div class="chart-container"><canvas id="rcptItemTotalChart"></canvas></div>
+    </div>
+  `;
+
+  state.receiptItemExcludedYears = [];
+  renderReceiptItemTable();
+  renderReceiptItemChart();
+  renderReceiptItemTotalChart();
+}
+
+function toggleReceiptItemYear(year) {
+  if (!state.receiptItemExcludedYears) state.receiptItemExcludedYears = [];
+  const idx = state.receiptItemExcludedYears.indexOf(year);
+  if (idx === -1) state.receiptItemExcludedYears.push(year);
+  else state.receiptItemExcludedYears.splice(idx, 1);
+  renderReceiptItemTable();
+  renderReceiptItemChart();
+}
+
+function renderReceiptItemTable() {
+  const tbody = document.getElementById('rcptItemTbody');
+  if (!tbody) return;
+  if (!state.receiptItemExcludedYears) state.receiptItemExcludedYears = [];
+  const allYearData = JSON.parse(tbody.dataset.yeardata);
+  const metric = state.receiptMetric;
+  tbody.innerHTML = allYearData.map((yd, yi) => {
+    const excluded = state.receiptItemExcludedYears.includes(yd.year);
+    const arr = yd[metric];
+    const total = arr.reduce((a,b)=>a+b,0);
+    let prevYd = null;
+    for (let j = yi - 1; j >= 0; j--) {
+      if (!state.receiptItemExcludedYears.includes(allYearData[j].year)) { prevYd = allYearData[j]; break; }
+    }
+    const rowStyle = excluded ? 'opacity:0.3;' : '';
+    return `<tr style="${rowStyle}">
+      <td style="font-family:'IBM Plex Mono',monospace;font-weight:600;cursor:pointer;user-select:none;color:#e09040;"
+        onclick="toggleReceiptItemYear(${yd.year})" title="Click to toggle year">
+        ${excluded ? `<span style="text-decoration:line-through;color:var(--text3);">${yd.year}</span>` : yd.year}
+      </td>
+      ${arr.map((v, pi) => {
+        const prev = prevYd ? prevYd[metric][pi] : null;
+        const pct = prev !== null ? calcPct(prev, v) : null;
+        const sub = (pct !== null && pct !== 0)
+          ? `<div style="font-size:9px;${pct>0?'color:var(--green)':'color:var(--red)'}">${fmtPct(pct)}</div>` : '';
+        return `<td class="td-num ${v===0?'zero':''}">${fmtReceiptMetric(v)}${sub}</td>`;
+      }).join('')}
+      <td class="td-num" style="color:#e09040;font-weight:600;">${fmtReceiptMetric(total)}</td>
+    </tr>`;
+  }).join('');
+}
+
+let rcptItemChart = null;
+let rcptItemTotalChart = null;
+
+function renderReceiptItemChart() {
+  if (rcptItemChart) { rcptItemChart.destroy(); rcptItemChart = null; }
+  const canvas = document.getElementById('rcptItemChart');
+  if (!canvas) return;
+  if (!state.receiptItemExcludedYears) state.receiptItemExcludedYears = [];
+  const allYearData = JSON.parse(document.getElementById('rcptItemTbody').dataset.yeardata);
+  const activeYearData = allYearData.filter(yd => !state.receiptItemExcludedYears.includes(yd.year));
+  const metric = state.receiptMetric;
+  const colors = ['#c8a84b','#5b9bd5','#4caf7d','#9b7fd4','#e0885c','#4cb8b8','#e05c5c'];
+  const colorMap = {};
+  allYearData.forEach((yd, i) => { colorMap[yd.year] = colors[i % colors.length]; });
+
+  const titleEl = document.getElementById('rcptItemChartTitle');
+  if (titleEl) titleEl.textContent = `${getReceiptMetricLabel()} — Year Over Year`;
+
+  rcptItemChart = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: Array.from({length:12},(_,i)=>'P'+(i+1)),
+      datasets: activeYearData.map(yd => ({
+        label: String(yd.year),
+        data: yd[metric],
+        borderColor: colorMap[yd.year],
+        backgroundColor: colorMap[yd.year] + '22',
+        borderWidth: 2, pointRadius: 3, fill: false, tension: 0.3,
+      }))
+    },
+    options: chartOpts(getReceiptMetricLabel(), false)
+  });
+}
+
+function renderReceiptItemTotalChart() {
+  if (rcptItemTotalChart) { rcptItemTotalChart.destroy(); rcptItemTotalChart = null; }
+  const canvas = document.getElementById('rcptItemTotalChart');
+  if (!canvas) return;
+  const allYearData = JSON.parse(document.getElementById('rcptItemTbody').dataset.yeardata);
+  const metric = state.receiptMetric;
+  const totals = allYearData.map(yd => yd[metric].reduce((a,b)=>a+b,0));
+
+  const titleEl = document.getElementById('rcptItemTotalChartTitle');
+  if (titleEl) titleEl.textContent = `Annual Totals — ${getReceiptMetricLabel()}`;
+
+  rcptItemTotalChart = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: allYearData.map(yd => String(yd.year)),
+      datasets: [{ label: getReceiptMetricLabel(), data: totals, backgroundColor: '#e0904099', borderColor: '#e09040', borderWidth: 1 }]
+    },
+    options: chartOpts(getReceiptMetricLabel(), false)
+  });
+}
+
 function toggleChartExclusion(el) {
   el.classList.toggle('chart-pdf-excluded');
 }
@@ -4773,6 +5988,300 @@ function runCustomCompareCategories() {
 }
 
 // ═══════════════════════════════════════════════
+// RECEIPTS CUSTOM COMPARE
+// ═══════════════════════════════════════════════
+const receiptCustomState = {
+  items: [],
+  years: [],
+  quarter: 0,
+  mode: 'items',       // 'items' | 'categories'
+  selectedCats: [],
+};
+
+function updateReceiptCustomYearSel() {
+  const el = document.getElementById('rcptCustomYearSel');
+  if (!el) return;
+  const years = getSortedReceiptYears();
+  if (receiptCustomState.years.length === 0) years.forEach(y => receiptCustomState.years.push(y));
+  el.innerHTML = years.map(y => {
+    const on = receiptCustomState.years.includes(y);
+    return `<div class="period-btn ${on?'active':''}" onclick="toggleReceiptCustomYear(${y})">${y}</div>`;
+  }).join('');
+}
+
+function toggleReceiptCustomYear(y) {
+  const idx = receiptCustomState.years.indexOf(y);
+  if (idx === -1) receiptCustomState.years.push(y);
+  else receiptCustomState.years.splice(idx, 1);
+  receiptCustomState.years.sort();
+  updateReceiptCustomYearSel();
+}
+
+function selectReceiptCustomQuarter(q) {
+  const qps = QUARTER_PERIODS[q];
+  const el = document.getElementById('rcptCustomPeriodSel');
+  const allBtn = el.querySelector('.period-btn[data-p="0"]');
+  const current = getActivePeriods('rcptCustomPeriodSel');
+  const allIn = qps.every(p => current.includes(p));
+  qps.forEach(p => {
+    const btn = el.querySelector(`.period-btn[data-p="${p}"]`);
+    if (btn) btn.classList.toggle('active', !allIn);
+  });
+  const anyActive = getActivePeriods('rcptCustomPeriodSel').length > 0;
+  allBtn.classList.toggle('active', !anyActive);
+  updateQuarterHighlights('rcptCustomQuarterSel', 'rcptCustomPeriodSel');
+}
+
+function addReceiptCustomItem(itemCode, description, prodLine) {
+  if (receiptCustomState.items.find(i => i.itemCode === itemCode)) return;
+  receiptCustomState.items.push({ itemCode, description, prodLine });
+  renderReceiptCustomItemChips();
+}
+
+function removeReceiptCustomItem(itemCode) {
+  receiptCustomState.items = receiptCustomState.items.filter(i => i.itemCode !== itemCode);
+  renderReceiptCustomItemChips();
+}
+
+function renderReceiptCustomItemChips() {
+  const el = document.getElementById('rcptCustomItemChips');
+  const hint = document.getElementById('rcptCustomItemsHint');
+  if (!el) return;
+  el.innerHTML = receiptCustomState.items.map(i =>
+    `<div class="custom-label-tag" style="font-family:'IBM Plex Mono',monospace;">
+      <span style="color:#e09040;font-weight:600;">${i.itemCode}</span>
+      ${i.description ? `<span style="color:var(--text3);font-size:10px;margin-left:2px;">${i.description.slice(0,30)}</span>` : ''}
+      <span class="del-label" onclick="removeReceiptCustomItem('${i.itemCode}')">×</span>
+    </div>`
+  ).join('');
+  if (hint) hint.style.display = receiptCustomState.items.length ? 'none' : '';
+}
+
+function setReceiptCustomMode(mode) {
+  receiptCustomState.mode = mode;
+  document.getElementById('rcptCustomModeItems').classList.toggle('active', mode === 'items');
+  document.getElementById('rcptCustomModeCats').classList.toggle('active', mode === 'categories');
+  document.getElementById('rcptCustomSearchGroup').style.display = (mode === 'items') ? '' : 'none';
+  document.getElementById('rcptCustomItemsRow').style.display    = (mode === 'items') ? 'flex' : 'none';
+  document.getElementById('rcptCustomCatsRow').style.display     = (mode === 'categories') ? 'flex' : 'none';
+  if (mode === 'categories') renderReceiptCustomCatChips();
+}
+
+function renderReceiptCustomCatChips() {
+  const el = document.getElementById('rcptCustomCatChips');
+  const hint = document.getElementById('rcptCustomCatsHint');
+  if (!el) return;
+  const cats = getAllReceiptCategories();
+  el.innerHTML = cats.map(cat => {
+    const color = getReceiptCatColor(cat);
+    const active = receiptCustomState.selectedCats.includes(cat);
+    return `<div class="period-btn ${active?'active':''}"
+      style="${active ? `background:${color};border-color:${color};color:#000;` : `border-color:${color}44;color:${color};`}"
+      onclick="toggleReceiptCustomCat('${cat}')">${cat}</div>`;
+  }).join('');
+  if (hint) hint.style.display = receiptCustomState.selectedCats.length ? 'none' : '';
+}
+
+function toggleReceiptCustomCat(cat) {
+  const idx = receiptCustomState.selectedCats.indexOf(cat);
+  if (idx === -1) receiptCustomState.selectedCats.push(cat);
+  else receiptCustomState.selectedCats.splice(idx, 1);
+  renderReceiptCustomCatChips();
+}
+
+function initReceiptCustomTypeahead() {
+  const input = document.getElementById('rcptCustomSearch');
+  const suggestions = document.getElementById('rcptCustomSuggestions');
+  if (!input) return;
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    if (!q) { suggestions.style.display = 'none'; return; }
+    const pool = getAllReceiptItems().filter(i => !state.excludedReceiptCodes.includes(i.itemCode));
+    const matches = pool.filter(i =>
+      i.itemCode.toLowerCase().includes(q) ||
+      (i.description && i.description.toLowerCase().includes(q))
+    ).slice(0, 40);
+
+    if (!matches.length) { suggestions.style.display = 'none'; return; }
+
+    suggestions.innerHTML = matches.map(i => {
+      const desc = i.description ? ' — ' + i.description.slice(0, 55) : '';
+      return `<div class="item-suggestion" data-code="${i.itemCode}" style="
+        padding:7px 12px;cursor:pointer;font-size:11px;font-family:'IBM Plex Mono',monospace;
+        border-bottom:1px solid var(--border);transition:background 0.1s;
+        display:flex;gap:8px;align-items:baseline;">
+        <span style="color:#e09040;font-weight:600;">${i.itemCode}</span>
+        <span style="color:var(--text3);font-size:10px;">${desc}</span>
+      </div>`;
+    }).join('');
+    suggestions.style.display = 'block';
+
+    suggestions.querySelectorAll('.item-suggestion').forEach(el => {
+      el.addEventListener('mouseenter', () => el.style.background = 'var(--surface3)');
+      el.addEventListener('mouseleave', () => el.style.background = '');
+      el.addEventListener('mousedown', e => {
+        e.preventDefault();
+        const code = el.dataset.code;
+        const item = pool.find(i => i.itemCode === code);
+        addReceiptCustomItem(code, item?.description || '', item?.prodLine || '');
+        input.value = '';
+        suggestions.style.display = 'none';
+      });
+    });
+  });
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Escape') suggestions.style.display = 'none';
+  });
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#rcptCustomSuggestions') && e.target.id !== 'rcptCustomSearch') {
+      suggestions.style.display = 'none';
+    }
+  });
+}
+
+function runReceiptsCustomCompare() {
+  if (receiptCustomState.mode === 'categories') { runReceiptsCustomCompareCategories(); return; }
+
+  if (!receiptCustomState.items.length) {
+    document.getElementById('rcptCustomContent').innerHTML = '<div class="empty-state"><div class="empty-icon">🎯</div><div class="empty-title">No items added</div><div class="empty-sub">Search and add item codes above.</div></div>';
+    return;
+  }
+  if (!receiptCustomState.years.length) {
+    document.getElementById('rcptCustomContent').innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">No years selected</div></div>';
+    return;
+  }
+
+  const periods = getActivePeriods('rcptCustomPeriodSel');
+  const activeYears = receiptCustomState.years.filter(y => state.receiptYears[y]);
+  const periodLabel = getPeriodsLabel(periods);
+  const metricLabel = getReceiptMetricLabel();
+  const colors = ['#c8a84b','#5b9bd5','#4caf7d','#9b7fd4','#e0885c','#4cb8b8','#e05c5c'];
+
+  const rows = receiptCustomState.items.map(item => {
+    const yearQtys = activeYears.map(y => {
+      const yi = state.receiptYears[y]?.items.find(i => i.itemCode === item.itemCode);
+      if (!yi) return 0;
+      return getReceiptPeriodsMetric(yi, periods);
+    });
+    return { ...item, yearQtys };
+  });
+
+  const yearHeaders = activeYears.map((y, yi) =>
+    `<th style="text-align:right;color:${colors[yi%colors.length]};">${y}<div style="font-size:9px;color:var(--text3);font-weight:400;">${periodLabel} (${metricLabel})</div></th>` +
+    (yi < activeYears.length - 1 ? `<th style="text-align:right;font-size:9px;">vs ${activeYears[yi+1]}</th>` : '')
+  ).join('');
+
+  const tableRows = rows.map(r => {
+    const cat = getReceiptCat(r.itemCode);
+    const color = getReceiptCatColor(cat);
+    const cells = r.yearQtys.map((qty, yi) => {
+      const base = `<td class="td-num ${qty===0?'zero':''}">${fmtReceiptMetric(qty)}</td>`;
+      if (yi < activeYears.length - 1) {
+        const nextQty = r.yearQtys[yi+1];
+        const pct = calcPct(qty, nextQty);
+        return base + `<td class="td-pct ${pctClass(pct)}" style="font-size:10px;">${fmtPct(pct)}</td>`;
+      }
+      return base;
+    }).join('');
+    return `<tr>
+      <td class="td-code">${r.itemCode}</td>
+      <td class="td-desc" title="${r.description}">${r.description||'—'}</td>
+      <td><span class="cat-badge" style="background:${color}22;color:${color};border-color:${color}44;"
+        onclick="event.stopPropagation();showReceiptCatDropdown('${r.itemCode}',event.clientX,event.clientY)">${cat}</span></td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  document.getElementById('rcptCustomContent').innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Item Code</th>
+            <th>Description</th>
+            <th>Category</th>
+            ${yearHeaders}
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function runReceiptsCustomCompareCategories() {
+  const cats = receiptCustomState.selectedCats.length ? receiptCustomState.selectedCats : getAllReceiptCategories();
+  if (!receiptCustomState.years.length) {
+    document.getElementById('rcptCustomContent').innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">No years selected</div></div>';
+    return;
+  }
+
+  const periods = getActivePeriods('rcptCustomPeriodSel');
+  const activeYears = receiptCustomState.years.filter(y => state.receiptYears[y]);
+  const allItems = getAllReceiptItems();
+  const periodLabel = getPeriodsLabel(periods);
+  const metricLabel = getReceiptMetricLabel();
+  const colors = ['#c8a84b','#5b9bd5','#4caf7d','#9b7fd4','#e0885c','#4cb8b8','#e05c5c'];
+
+  const rows = cats.map(cat => {
+    const yearQtys = activeYears.map(y => {
+      return allItems
+        .filter(item => getReceiptCat(item.itemCode) === cat)
+        .reduce((sum, item) => {
+          const yi = state.receiptYears[y]?.items.find(i => i.itemCode === item.itemCode);
+          if (!yi) return sum;
+          return sum + getReceiptPeriodsMetric(yi, periods);
+        }, 0);
+    });
+    return { cat, yearQtys };
+  }).filter(r => r.yearQtys.some(v => v !== 0));
+
+  const yearHeaders = activeYears.map((y, yi) =>
+    `<th style="text-align:right;color:${colors[yi%colors.length]};">${y}<div style="font-size:9px;color:var(--text3);font-weight:400;">${periodLabel} (${metricLabel})</div></th>` +
+    (yi < activeYears.length - 1 ? `<th style="text-align:right;font-size:9px;">vs ${activeYears[yi+1]}</th>` : '')
+  ).join('');
+
+  const tableRows = rows.map(r => {
+    const color = getReceiptCatColor(r.cat);
+    const cells = r.yearQtys.map((qty, yi) => {
+      const base = `<td class="td-num ${qty===0?'zero':''}">${fmtReceiptMetric(qty)}</td>`;
+      if (yi < activeYears.length - 1) {
+        const pct = calcPct(qty, r.yearQtys[yi+1]);
+        return base + `<td class="td-pct ${pctClass(pct)}" style="font-size:10px;">${fmtPct(pct)}</td>`;
+      }
+      return base;
+    }).join('');
+    return `<tr>
+      <td colspan="2" style="padding:7px 10px;">
+        <span style="display:inline-flex;align-items:center;gap:6px;">
+          <span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;"></span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:${color};">${r.cat}</span>
+        </span>
+      </td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  document.getElementById('rcptCustomContent').innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th colspan="2">Category</th>
+            ${yearHeaders}
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+    ${rows.length === 0 ? '<div class="no-data">No data for selected categories.</div>' : ''}
+  `;
+}
+
+// ═══════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════
 document.addEventListener('keydown', e => {
@@ -4787,8 +6296,13 @@ Object.entries(state.renamedCats).forEach(([orig, renamed]) => {
 updateUI();
 updateCustomLabelsList();
 updateExcludedCodesList();
+updateReceiptCustomLabelsList();
+updateExcludedReceiptCodesList();
+updateManageSectionsVisibility();
 initItemDetailTypeahead();
+initReceiptItemDetailTypeahead();
 initCustomTypeahead();
+initReceiptCustomTypeahead();
 initCustomMatTypeahead();
 
 document.getElementById('newExcludeMaterialInput') && document.getElementById('newExcludeMaterialInput').addEventListener('keydown', e => { if (e.key === 'Enter') addExcludedMaterialCode(); });
@@ -4868,6 +6382,58 @@ function exportPDF(tab) {
       chartsHTML = '<div class="pdf-chart-row">' + [...canvases].map(c => {
         try { return `<div class="pdf-chart-box"><div class="pdf-chart-title">Chart</div><img src="${c.toDataURL('image/png')}"></div>`; } catch(e){ return ''; }
       }).join('') + '</div>';
+    }
+  }
+
+  // ── RECEIPTS COMPARE ──
+  else if (tab === 'rcptCompare') {
+    const baseYear = document.getElementById('rcptBaseYear').value;
+    const vsYear = document.getElementById('rcptVsYear').value;
+    const periodLabel = getPeriodsLabel(getActivePeriods('rcptPeriodSel'));
+    const activeCats = state.receiptActiveCats.length ? state.receiptActiveCats.join(', ') : 'All Categories';
+
+    titleText = `Receipts Year-Over-Year Comparison`;
+    subtitleText = `${baseYear} vs ${vsYear}  ·  ${periodLabel}  ·  ${getReceiptMetricLabel()}  ·  ${activeCats}`;
+
+    const statsBar = document.getElementById('rcptCmpStats');
+    if (statsBar && statsBar.style.display !== 'none') {
+      const cards = statsBar.querySelectorAll('.stat-card');
+      statsHTML = [...cards].map(c => {
+        const label = c.querySelector('.stat-label')?.textContent || '';
+        const value = c.querySelector('.stat-value')?.textContent || '';
+        const sub = c.querySelector('.stat-sub')?.textContent || '';
+        const isChange = label === 'Change';
+        const valColor = isChange ? (value.startsWith('+') ? '#2a7a4f' : '#c0392b') : '#c8a84b';
+        return `<div class="pdf-stat">
+          <div class="pdf-stat-label">${label}</div>
+          <div class="pdf-stat-value" style="color:${valColor}">${value}</div>
+          <div class="pdf-stat-sub">${sub}</div>
+        </div>`;
+      }).join('');
+    }
+
+    const srcTable = document.querySelector('#rcptCompareContent table');
+    if (srcTable) {
+      const headers = [...srcTable.querySelectorAll('thead th')].map(th => {
+        const t = th.textContent.replace(/[↑↓]/g,'').trim();
+        return `<th class="${['Change','Diff'].some(x=>t.includes(x))?'num':''}">${t}</th>`;
+      }).join('');
+      const rows = [...srcTable.querySelectorAll('tbody tr')].map(tr => {
+        const cells = [...tr.querySelectorAll('td')].map((td, i) => {
+          const t = td.textContent.trim();
+          let cls = '';
+          if (i === 0) cls = 'td-code';
+          else if (i === 1) cls = 'td-desc';
+          else if (t.startsWith('+')) cls = 'num pos';
+          else if (t.startsWith('-') && t !== '—') cls = 'num neg';
+          else if (t === '—') cls = 'num zero';
+          else cls = 'num';
+          return `<td class="${cls}">${t}</td>`;
+        }).join('');
+        return `<tr>${cells}</tr>`;
+      }).join('');
+      tableHTML = `<div class="pdf-section-title">Item Detail</div>
+        <table class="pdf-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
     }
   }
 
@@ -5083,6 +6649,78 @@ function exportPDF(tab) {
     subtitleText = `${customState.years.join(', ')}  ·  ${periodLabel}  ·  ${customState.items.length} items`;
 
     const srcTable = document.querySelector('#customContent table');
+    if (srcTable) {
+      const headers = [...srcTable.querySelectorAll('thead th')].map((th, i) => {
+        const t = th.textContent.trim();
+        return `<th class="${i>2?'num':''}">${t}</th>`;
+      }).join('');
+      const rows = [...srcTable.querySelectorAll('tbody tr')].map(tr => {
+        const cells = [...tr.querySelectorAll('td')].map((td, i) => {
+          const t = td.textContent.trim();
+          let cls = i===0?'td-code':i===1?'td-desc':i===2?'':'num';
+          if (t.startsWith('+')) cls = 'num pos';
+          else if (t.startsWith('-') && t !== '—') cls = 'num neg';
+          return `<td class="${cls}">${t}</td>`;
+        }).join('');
+        return `<tr>${cells}</tr>`;
+      }).join('');
+      tableHTML = `<div class="pdf-section-title">Item Breakdown</div>
+        <table class="pdf-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+    }
+  }
+
+  // ── RECEIPTS ITEM DETAIL ──
+  else if (tab === 'rcptItems') {
+    const code = document.getElementById('rcptItemDetailSelect').value;
+    const searchVal = document.getElementById('rcptItemDetailSearch').value;
+    const itemEntry = _receiptItemDetailAll.find(i => i.itemCode === code);
+    const itemDesc = itemEntry?.description || '';
+    const metricLabel = getReceiptMetricLabel();
+    titleText = `Receipts Item Detail — ${code || searchVal}  [${metricLabel}]`;
+    subtitleText = [itemDesc, `Years: ${getSortedReceiptYears().join(', ')}`].filter(Boolean).join('  ·  ');
+
+    const srcTable = document.querySelector('#rcptItemDetailContent table');
+    if (srcTable) {
+      const headers = [...srcTable.querySelectorAll('thead th')].map(th =>
+        `<th>${th.textContent.trim()}</th>`).join('');
+      const rows = [...srcTable.querySelectorAll('tbody tr')]
+        .filter(tr => tr.style.opacity !== '0.3')
+        .map(tr => {
+          const cells = [...tr.querySelectorAll('td')].map((td, i) => {
+            const t = (td.firstChild && td.firstChild.nodeType === 3 ? td.firstChild.textContent : td.textContent).trim();
+            const cls = i===0?'td-code':'num';
+            return `<td class="${cls}">${t}</td>`;
+          }).join('');
+          return `<tr>${cells}</tr>`;
+        }).join('');
+      tableHTML = `<div class="pdf-section-title">Period Breakdown — ${metricLabel}</div>
+        <table class="pdf-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+    }
+
+    try {
+      const chartDefs = [
+        { id: 'rcptItemChart', title: `${metricLabel} — Year Over Year` },
+        { id: 'rcptItemTotalChart', title: `Annual Totals — ${metricLabel}` },
+      ];
+      let html = '';
+      chartDefs.forEach(({ id, title }) => {
+        const canvas = document.getElementById(id);
+        if (!canvas) return;
+        try {
+          html += `<div class="pdf-chart-row" style="margin-bottom:10px;"><div class="pdf-chart-box" style="flex:0 0 100%;"><div class="pdf-chart-title">${title}</div><img src="${canvas.toDataURL('image/png')}" style="width:100%;height:auto;display:block;"></div></div>`;
+        } catch(e) {}
+      });
+      chartsHTML = html;
+    } catch(e) {}
+  }
+
+  // ── RECEIPTS CUSTOM ──
+  else if (tab === 'rcptCustom') {
+    const periodLabel = getPeriodsLabel(getActivePeriods('rcptCustomPeriodSel'));
+    titleText = `Custom Receipts Comparison`;
+    subtitleText = `${receiptCustomState.years.join(', ')}  ·  ${periodLabel}  ·  ${getReceiptMetricLabel()}  ·  ${receiptCustomState.items.length} items`;
+
+    const srcTable = document.querySelector('#rcptCustomContent table');
     if (srcTable) {
       const headers = [...srcTable.querySelectorAll('thead th')].map((th, i) => {
         const t = th.textContent.trim();

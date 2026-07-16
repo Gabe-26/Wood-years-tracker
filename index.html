@@ -2916,8 +2916,10 @@ function setDataType(type) {
 
   const marginsTab = document.querySelector('.tab[data-tab="margins"]');
   const projTab = document.querySelector('.tab[data-tab="projections"]');
+  const trendsTab = document.querySelector('.tab[data-tab="trends"]');
   if (marginsTab) marginsTab.style.display = (type === 'sales') ? '' : 'none';
   if (projTab) projTab.style.display = (type === 'sales') ? 'none' : '';
+  if (trendsTab) trendsTab.style.display = (type === 'sales') ? '' : 'none';
 
   // If the currently active sub-tab just got hidden, fall back to Compare
   const activeTab = document.querySelector('.tab.active');
@@ -2931,7 +2933,7 @@ function setDataType(type) {
   else if (type === 'issues') { setCmpMode('materials'); setItemSearchMode('materials'); setCustomDataMode('materials'); }
 
   updateCompareSectionsVisibility();
-  setDataTypeSectionVisibility('panel-trends', ['sales', 'issues']);
+  setDataTypeSectionVisibility('panel-trends', ['sales']);
   updateItemsSectionsVisibility();
   updateCustomSectionsVisibility();
   updateManageSectionsVisibility();

@@ -4832,11 +4832,11 @@ function runItemDetailMaterials() {
         <tbody id="itemMatTbody" data-yeardata='${JSON.stringify(yearData).replace(/'/g, "&#39;")}'></tbody>
       </table>
     </div>
-    <div class="chart-card full" style="margin-bottom:16px;">
+    <div class="chart-card full chart-toggleable" title="Click to exclude from PDF" onclick="toggleChartExclusion(this)" style="margin-bottom:16px;">
       <div class="chart-title">Material Issued — Year Over Year</div>
       <div class="chart-container tall"><canvas id="itemMatChart"></canvas></div>
     </div>
-    <div class="chart-card" style="margin-bottom:16px;">
+    <div class="chart-card chart-toggleable" title="Click to exclude from PDF" onclick="toggleChartExclusion(this)" style="margin-bottom:16px;">
       <div class="chart-title">Annual Totals Issued</div>
       <div class="chart-container"><canvas id="itemMatTotalChart"></canvas></div>
     </div>
@@ -5075,11 +5075,11 @@ function runReceiptsItemDetail() {
         <tbody id="rcptItemTbody" data-yeardata='${JSON.stringify(yearData).replace(/'/g, "&#39;")}'></tbody>
       </table>
     </div>
-    <div class="chart-card full" style="margin-bottom:16px;">
+    <div class="chart-card full chart-toggleable" title="Click to exclude from PDF" onclick="toggleChartExclusion(this)" style="margin-bottom:16px;">
       <div class="chart-title" id="rcptItemChartTitle">${getReceiptMetricLabel()} — Year Over Year</div>
       <div class="chart-container tall"><canvas id="rcptItemChart"></canvas></div>
     </div>
-    <div class="chart-card" style="margin-bottom:16px;">
+    <div class="chart-card chart-toggleable" title="Click to exclude from PDF" onclick="toggleChartExclusion(this)" style="margin-bottom:16px;">
       <div class="chart-title" id="rcptItemTotalChartTitle">Annual Totals — ${getReceiptMetricLabel()}</div>
       <div class="chart-container"><canvas id="rcptItemTotalChart"></canvas></div>
     </div>
@@ -6607,12 +6607,15 @@ function exportPDF(tab) {
 
   // ── ITEM DETAIL ──
   else if (tab === 'items') {
+    const isMatMode = state.itemSearchMode === 'materials';
     const code = document.getElementById('itemDetailSelect').value;
     const searchVal = document.getElementById('itemDetailSearch').value;
     const itemEntry = _itemDetailAll.find(i => i.itemCode === code);
     const itemDesc = itemEntry?.description || '';
     const metricLabel = { qty: 'QTY', dollars: '$', cogs: 'COGS', profit: 'GP' }[state.metric] || 'QTY';
-    titleText = `Item Detail — ${code || searchVal}  [${metricLabel}]`;
+    titleText = isMatMode
+      ? `Issues Item Detail — ${code || searchVal}`
+      : `Item Detail — ${code || searchVal}  [${metricLabel}]`;
     subtitleText = [itemDesc, `Years: ${getSortedYears().join(', ')}`].filter(Boolean).join('  ·  ');
 
     const srcTable = document.querySelector('#itemDetailContent table');
@@ -6633,17 +6636,24 @@ function exportPDF(tab) {
           }).join('');
           return `<tr>${cells}</tr>`;
         }).join('');
-      tableHTML = `<div class="pdf-section-title">Period Breakdown — ${metricLabel}</div>
+      tableHTML = `<div class="pdf-section-title">Period Breakdown${isMatMode ? '' : ' — ' + metricLabel}</div>
         <table class="pdf-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
     }
 
-    // Charts: full-width each, stacked; skip any the user has excluded (chart-pdf-excluded)
+    // Charts: full-width each, stacked; skip any the user has excluded (chart-pdf-excluded).
+    // Sales and Issues (materials) render into the same #itemDetailContent div
+    // but with different canvas ids, so pick the right set for whichever is active.
     try {
-      const chartDefs = [
-        { id: 'itemDetailChart', title: 'Year Over Year — All Periods' },
-        { id: 'itemTotalChart',  title: 'Annual Totals'                },
-        { id: 'itemPeriodChart', title: 'Period Pattern (Latest Year)' },
-      ];
+      const chartDefs = isMatMode
+        ? [
+            { id: 'itemMatChart',      title: 'Material Issued — Year Over Year' },
+            { id: 'itemMatTotalChart', title: 'Annual Totals Issued'             },
+          ]
+        : [
+            { id: 'itemDetailChart', title: 'Year Over Year — All Periods' },
+            { id: 'itemTotalChart',  title: 'Annual Totals'                },
+            { id: 'itemPeriodChart', title: 'Period Pattern (Latest Year)' },
+          ];
       let html = '';
       chartDefs.forEach(({ id, title }) => {
         const canvas = document.getElementById(id);
@@ -6815,6 +6825,8 @@ function exportPDF(tab) {
       chartDefs.forEach(({ id, title }) => {
         const canvas = document.getElementById(id);
         if (!canvas) return;
+        const card = canvas.closest('.chart-toggleable');
+        if (card && card.classList.contains('chart-pdf-excluded')) return;
         try {
           html += `<div class="pdf-chart-row" style="margin-bottom:10px;"><div class="pdf-chart-box" style="flex:0 0 100%;"><div class="pdf-chart-title">${title}</div><img src="${canvas.toDataURL('image/png')}" style="width:100%;height:auto;display:block;"></div></div>`;
         } catch(e) {}

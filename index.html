@@ -1477,22 +1477,16 @@ function loadState() {
     if (custom) state.customLabels = JSON.parse(custom);
     const targets = localStorage.getItem('aii_wood_proj_targets');
     if (targets) state.projTargets = JSON.parse(targets);
-    const years = localStorage.getItem('aii_wood_years');
-    if (years) state.years = JSON.parse(years);
     const excluded = localStorage.getItem('aii_wood_excluded_codes');
     if (excluded) state.excludedCodes = JSON.parse(excluded);
     const renamed = localStorage.getItem('aii_wood_renamed_cats');
     if (renamed) state.renamedCats = JSON.parse(renamed);
-    const issueYears = localStorage.getItem('aii_wood_issue_years');
-    if (issueYears) state.issueYears = JSON.parse(issueYears);
     const exclMat = localStorage.getItem('aii_wood_excluded_material_codes');
     if (exclMat) state.excludedMaterialCodes = JSON.parse(exclMat);
     const matLabels = localStorage.getItem('aii_wood_material_labels');
     if (matLabels) state.materialLabels = JSON.parse(matLabels);
     const allowedMat = localStorage.getItem('aii_wood_allowed_material_codes');
     if (allowedMat) state.allowedMaterialCodes = JSON.parse(allowedMat);
-    const receiptYears = localStorage.getItem('aii_wood_receipt_years');
-    if (receiptYears) state.receiptYears = JSON.parse(receiptYears);
     const receiptLabels = localStorage.getItem('aii_wood_receipt_labels');
     if (receiptLabels) state.receiptLabels = JSON.parse(receiptLabels);
     const receiptCustom = localStorage.getItem('aii_wood_receipt_custom_labels');
@@ -1501,17 +1495,101 @@ function loadState() {
     if (renamedReceiptCats) state.renamedReceiptCats = JSON.parse(renamedReceiptCats);
     const exclReceipt = localStorage.getItem('aii_wood_excluded_receipt_codes');
     if (exclReceipt) state.excludedReceiptCodes = JSON.parse(exclReceipt);
+    // NOTE: state.years / state.issueYears / state.receiptYears are no longer
+    // read from localStorage here — they live in IndexedDB now (see
+    // loadAllYearsFromIDB, called at init) because managed/enterprise Edge
+    // enforces a tight localStorage quota that this data was exceeding.
   } catch(e) {}
 }
 function saveExcludedCodes() {
   localStorage.setItem('aii_wood_excluded_codes', JSON.stringify(state.excludedCodes));
 }
+
+// ═══════════════════════════════════════════════
+// INDEXEDDB — large year-data pools (Sales / Issues / Receipts)
+// ═══════════════════════════════════════════════
+// Managed/enterprise Microsoft Edge enforces a tight localStorage quota
+// (often 1–2MB via group policy). Uploading the receipts CSV pushed Wood's
+// combined year data over that limit, throwing "exceeded the quota" — the
+// same issue Metal hit earlier. IndexedDB has no such limit and is unaffected
+// by the localStorage group policy, so all three year-data pools move there.
+const _IDB_NAME = 'AII_Wood_DB';
+const _IDB_STORES = ['salesYears', 'issueYears', 'receiptYears'];
+
+function _openIDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(_IDB_NAME, 1);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      _IDB_STORES.forEach(name => {
+        if (!db.objectStoreNames.contains(name)) db.createObjectStore(name);
+      });
+    };
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror = e => reject(e.target.error);
+  });
+}
+
+function _saveYearsToStore(storeName, yearsObj, errLabel) {
+  _openIDB().then(db => {
+    const tx = db.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+    store.clear();
+    Object.entries(yearsObj).forEach(([yr, data]) => store.put(data, Number(yr)));
+  }).catch(e => alert(`Could not save ${errLabel || storeName} data: ` + e.message));
+}
+
+// Loads a store from IndexedDB. If the store is empty (first run after this
+// update), falls back to the old single-blob localStorage key, migrates that
+// data into IndexedDB, and removes the old key — a one-time, lossless move.
+function _loadYearsFromStore(storeName, oldLocalStorageKey, applyFn) {
+  return _openIDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readonly');
+    const store = tx.objectStore(storeName);
+    const keysReq = store.getAllKeys();
+    const valsReq = store.getAll();
+    tx.oncomplete = () => {
+      const keys = keysReq.result || [];
+      const vals = valsReq.result || [];
+      if (keys.length) {
+        const yearsObj = {};
+        keys.forEach((k, i) => { yearsObj[k] = vals[i]; });
+        applyFn(yearsObj);
+        resolve();
+        return;
+      }
+      // IDB store empty — check for legacy localStorage blob to migrate once
+      const raw = localStorage.getItem(oldLocalStorageKey);
+      if (raw) {
+        try {
+          const yearsObj = JSON.parse(raw);
+          if (Object.keys(yearsObj).length) {
+            applyFn(yearsObj);
+            _saveYearsToStore(storeName, yearsObj);
+            localStorage.removeItem(oldLocalStorageKey);
+          }
+        } catch(e) {}
+      }
+      resolve();
+    };
+    tx.onerror = () => reject(tx.error);
+  })).catch(() => {
+    // IndexedDB unavailable entirely — fall back to legacy localStorage blob
+    // (won't persist across sessions in this edge case, but avoids data loss now)
+    const raw = localStorage.getItem(oldLocalStorageKey);
+    if (raw) { try { applyFn(JSON.parse(raw)); } catch(e) {} }
+  });
+}
+
+function loadAllYearsFromIDB() {
+  return Promise.all([
+    _loadYearsFromStore('salesYears', 'aii_wood_years', obj => { state.years = obj; }),
+    _loadYearsFromStore('issueYears', 'aii_wood_issue_years', obj => { state.issueYears = obj; }),
+    _loadYearsFromStore('receiptYears', 'aii_wood_receipt_years', obj => { state.receiptYears = obj; }),
+  ]);
+}
 function saveYears() {
-  try {
-    localStorage.setItem('aii_wood_years', JSON.stringify(state.years));
-  } catch(e) {
-    alert('Could not save year data to localStorage (may be too large): ' + e.message);
-  }
+  _saveYearsToStore('salesYears', state.years, 'sales year');
 }
 function saveLabels() {
   localStorage.setItem('aii_wood_labels', JSON.stringify(state.itemLabels));
@@ -1523,11 +1601,7 @@ function saveRenamedCats() {
   localStorage.setItem('aii_wood_renamed_cats', JSON.stringify(state.renamedCats));
 }
 function saveIssueYears() {
-  try {
-    localStorage.setItem('aii_wood_issue_years', JSON.stringify(state.issueYears));
-  } catch(e) {
-    alert('Could not save material data to localStorage (may be too large): ' + e.message);
-  }
+  _saveYearsToStore('issueYears', state.issueYears, 'issue');
 }
 function saveExcludedMaterialCodes() {
   localStorage.setItem('aii_wood_excluded_material_codes', JSON.stringify(state.excludedMaterialCodes));
@@ -1542,11 +1616,7 @@ function saveProjTargets() {
   localStorage.setItem('aii_wood_proj_targets', JSON.stringify(state.projTargets));
 }
 function saveReceiptYears() {
-  try {
-    localStorage.setItem('aii_wood_receipt_years', JSON.stringify(state.receiptYears));
-  } catch(e) {
-    alert('Could not save receipts data to localStorage (may be too large): ' + e.message);
-  }
+  _saveYearsToStore('receiptYears', state.receiptYears, 'receipts');
   invalidateReceiptProdLineCache();
 }
 function saveReceiptLabels() {
@@ -6325,17 +6395,22 @@ loadState();
 Object.entries(state.renamedCats).forEach(([orig, renamed]) => {
   if (CAT_COLORS[orig]) { CAT_COLORS[renamed] = CAT_COLORS[orig]; delete CAT_COLORS[orig]; }
 });
-updateUI();
-updateCustomLabelsList();
-updateExcludedCodesList();
-updateReceiptCustomLabelsList();
-updateExcludedReceiptCodesList();
-updateManageSectionsVisibility();
-initItemDetailTypeahead();
-initReceiptItemDetailTypeahead();
-initCustomTypeahead();
-initReceiptCustomTypeahead();
-initCustomMatTypeahead();
+
+// Sales/Issue/Receipt year data lives in IndexedDB now — everything that
+// reads it must wait for this to resolve before first render.
+loadAllYearsFromIDB().then(() => {
+  updateUI();
+  updateCustomLabelsList();
+  updateExcludedCodesList();
+  updateReceiptCustomLabelsList();
+  updateExcludedReceiptCodesList();
+  updateManageSectionsVisibility();
+  initItemDetailTypeahead();
+  initReceiptItemDetailTypeahead();
+  initCustomTypeahead();
+  initReceiptCustomTypeahead();
+  initCustomMatTypeahead();
+});
 
 document.getElementById('newExcludeMaterialInput') && document.getElementById('newExcludeMaterialInput').addEventListener('keydown', e => { if (e.key === 'Enter') addExcludedMaterialCode(); });
 document.getElementById('newAllowedMaterialInput') && document.getElementById('newAllowedMaterialInput').addEventListener('keydown', e => { if (e.key === 'Enter') addAllowedMaterialCode(); });

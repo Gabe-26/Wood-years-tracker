@@ -4094,7 +4094,8 @@ function runReceiptsCompare() {
 function sortTable(col) {
   if (state.sortCol === col) state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
   else { state.sortCol = col; state.sortDir = 'desc'; }
-  runCompare();
+  if (state.dataType === 'receipts') runReceiptsCompare();
+  else runCompare();
 }
 
 // ═══════════════════════════════════════════════

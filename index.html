@@ -1441,6 +1441,7 @@ const state = {
   itemSearchMode: 'sales', // 'sales' | 'materials'
   itemDataMode: 'sales',  // 'sales' | 'materials'
   catSelection: new Set(),
+  receiptCatSelection: new Set(),
   metric: 'qty',      // 'qty' | 'dollars' | 'cogs'
   sortCol: null,
   sortDir: 'asc',
@@ -1814,18 +1815,35 @@ function parseCSVLine(line) {
 // ═══════════════════════════════════════════════
 // RECEIPTS CSV PARSER (Inventory Receipts History Report)
 // ═══════════════════════════════════════════════
-// This report has NO per-row year column — it is single-year only, with the
-// year given in the "Year Equal To:" header. Each item appears on multiple
-// physical rows (one per warehouse), but every row for that item carries a
-// "Total For Item:" block that is ALREADY summed across all of that item's
-// warehouse rows — so we dedupe by item code (last-write, values are
-// identical across duplicate rows) rather than accumulating ourselves.
+// Two export variants exist:
+//  - SINGLE-YEAR ("Year Equal To: YYYY" header): no per-row year column.
+//    Every physical row for an item carries a "Total For Item:" block
+//    already summed across that item's warehouse rows — dedupe by item
+//    code (last-write; values are identical across duplicate rows).
+//  - MULTI-YEAR ("Year Range: From: X To: Y" header): one row per item
+//    PER YEAR, with a per-row "Year:" field. The block immediately after
+//    the Year: value is that row's year-specific total. The "Total For
+//    Item:" block that also appears later in the SAME row is a grand
+//    total across the ENTIRE exported year range (identical on every
+//    year-row for that item) — it must NOT be used as the per-year value,
+//    or every year silently gets the same all-years total.
 function parseReceiptsCSV(text) {
   const fallbackYearMatch = text.match(/Year Equal To:\s*(20\d{2})/);
   const fallbackYear = fallbackYearMatch ? parseInt(fallbackYearMatch[1]) : null;
 
   const lines = text.trim().split('\n');
-  const itemsMap = new Map();
+  const yearBuckets = {}; // { year: Map(itemCode -> item) }
+
+  function readBlockAt(cols, labelIdx) {
+    const vals = [0,0,0,0,0,0,0,0,0,0,0,0];
+    for (let p = 0; p < 12; p++) {
+      const raw = (cols[labelIdx + 1 + p] || '').trim().replace(/,/g,'');
+      const isNeg = raw.endsWith('-');
+      const num = parseInt(raw.replace('-','')) || 0;
+      vals[p] = isNeg ? -num : num;
+    }
+    return vals;
+  }
 
   for (const line of lines) {
     if (!line.trim()) continue;
@@ -1841,41 +1859,50 @@ function parseReceiptsCSV(text) {
     const description = cols[25] ? cols[25].trim() : '';
     const prodLine = (cols[26] && cols[26].trim() === 'Prod Line:') ? (cols[27] ? cols[27].trim() : '') : '';
 
-    // Locate this row's "Total For Item:" marker — the block right after it
-    // holds the already-warehouse-summed Received/COGS/Produced/Returned values.
-    let ti = -1;
-    for (let i = 28; i < cols.length; i++) {
-      if (cols[i] && cols[i].trim().startsWith('Total For Item:')) { ti = i; break; }
+    // Optional per-row "Year:" field — present only in multi-year exports.
+    // Bounded scan that stops early if a metric/total label shows up first
+    // (meaning this is a single-year row with no Year: field at all).
+    let yearIdx = -1;
+    for (let i = 28; i < Math.min(cols.length, 28 + 40); i++) {
+      const v = cols[i] ? cols[i].trim() : '';
+      if (v === 'Year:') { yearIdx = i; break; }
+      if (v.startsWith('Quantity Received:') || v.startsWith('Total For Item:')) break;
     }
-    if (ti === -1) continue;
 
-    function readBlock(labelOffset) {
-      const vals = [0,0,0,0,0,0,0,0,0,0,0,0];
-      const labelIdx = ti + labelOffset;
-      for (let p = 0; p < 12; p++) {
-        const raw = (cols[labelIdx + 1 + p] || '').trim().replace(/,/g,'');
-        const isNeg = raw.endsWith('-');
-        const num = parseInt(raw.replace('-','')) || 0;
-        vals[p] = isNeg ? -num : num;
+    let received, cogs, produced, returned, year;
+
+    if (yearIdx !== -1) {
+      // Multi-year row: use the block right after Year:, NOT "Total For Item:".
+      year = parseInt((cols[yearIdx+1]||'').trim()) || null;
+      received = readBlockAt(cols, yearIdx + 2);
+      cogs     = readBlockAt(cols, yearIdx + 16);
+      produced = readBlockAt(cols, yearIdx + 30);
+      returned = readBlockAt(cols, yearIdx + 44);
+    } else {
+      // Single-year row: "Total For Item:" block IS the correct per-item total.
+      year = fallbackYear;
+      let ti = -1;
+      for (let i = 28; i < cols.length; i++) {
+        if (cols[i] && cols[i].trim().startsWith('Total For Item:')) { ti = i; break; }
       }
-      return vals;
+      if (ti === -1) continue;
+      received = readBlockAt(cols, ti + 1);
+      cogs     = readBlockAt(cols, ti + 15);
+      produced = readBlockAt(cols, ti + 29);
+      returned = readBlockAt(cols, ti + 43);
     }
-    const received = readBlock(1);   // 'Quantity Received:' label at ti+1
-    const cogs = readBlock(15);      // 'Cost of Goods Received:' label at ti+15
-    const produced = readBlock(29);  // 'Quantity Produced:' label at ti+29
-    const returned = readBlock(43);  // 'Quantity Returned:' label at ti+43
 
-    if (!fallbackYear) continue;
+    if (!year) continue;
 
-    // Dedupe: identical Total-For-Item values repeat on every row for this
-    // item, so overwrite rather than sum.
-    itemsMap.set(itemCode, { itemCode, description, prodLine, received, cogs, produced, returned });
+    // Dedupe per year+item: multi-year files have one row per item per year;
+    // single-year files repeat the same summed values on every warehouse row
+    // for that item — either way, last-write per (year, itemCode) is correct.
+    if (!yearBuckets[year]) yearBuckets[year] = new Map();
+    yearBuckets[year].set(itemCode, { itemCode, description, prodLine, received, cogs, produced, returned });
   }
 
   const years = {};
-  if (itemsMap.size && fallbackYear) {
-    years[fallbackYear] = [...itemsMap.values()];
-  }
+  Object.entries(yearBuckets).forEach(([y, m]) => { years[y] = [...m.values()]; });
   return { years };
 }
 
@@ -2362,6 +2389,19 @@ function toggleCatSelection(code, checked) {
 function updateBulkActionBar() {
   const container = document.getElementById('manageBulkBar');
   if (!container) return;
+  if (state.dataType === 'receipts') {
+    const n = state.receiptCatSelection.size;
+    if (n === 0) { container.style.display = 'none'; return; }
+    container.style.display = 'flex';
+    container.innerHTML = `
+      <span class="bulk-count">${n} item${n>1?'s':''} selected</span>
+      <span class="bulk-clear" onclick="clearReceiptCatSelection()">✕ clear</span>
+      <div class="flex-grow"></div>
+      <button class="btn-sm" onclick="bulkExcludeReceipt()">✕ Exclude all</button>
+      <button class="btn-sm accent" onclick="bulkReassignReceiptPrompt(event)">⇄ Reassign all</button>
+    `;
+    return;
+  }
   const n = state.catSelection.size;
   if (n === 0) {
     container.style.display = 'none';
@@ -2938,6 +2978,7 @@ function setDataType(type) {
   updateCustomSectionsVisibility();
   updateManageSectionsVisibility();
   setDataTypeSectionVisibility('panel-projections', []); // Issues/Receipts projections built in a follow-up stage
+  updateBulkActionBar();
 
   updateYearList(getSortedYears());
   refreshCurrentPanel();
@@ -3351,7 +3392,9 @@ function updateReceiptManageLegend() {
         ${items.map(item => {
           const code = item.itemCode;
           const desc = item.description ? item.description.slice(0,34) : '';
-          return `<div class="cat-expand-row">
+          const checked = state.receiptCatSelection.has(code);
+          return `<div class="cat-expand-row${checked?' cb-checked':''}" id="rcpt-expand-row-${code}">
+            <input type="checkbox" class="cat-expand-cb" ${checked?'checked':''} onchange="toggleReceiptCatSelection('${code}',this.checked)" onclick="event.stopPropagation()">
             <span class="cat-expand-code" style="color:${color};">${code}</span>
             <span class="cat-expand-desc" title="${item.description||''}">${desc}</span>
             <div class="cat-expand-actions">
@@ -3375,6 +3418,9 @@ function updateReceiptManageLegend() {
       </div>${itemRows}
     </div>`;
   }).join('');
+
+  // Bulk action bar
+  updateBulkActionBar();
 }
 
 function toggleReceiptCatExpand(cat) {
@@ -3471,6 +3517,59 @@ function clearReceiptCat(code) {
   saveReceiptLabels();
   hideCatDropdown();
   updateReceiptManageLegend();
+}
+
+function toggleReceiptCatSelection(code, checked) {
+  if (checked) state.receiptCatSelection.add(code);
+  else state.receiptCatSelection.delete(code);
+  const row = document.getElementById(`rcpt-expand-row-${code}`);
+  if (row) row.classList.toggle('cb-checked', checked);
+  updateBulkActionBar();
+}
+
+function clearReceiptCatSelection() {
+  state.receiptCatSelection.clear();
+  updateReceiptManageLegend();
+}
+
+function bulkExcludeReceipt() {
+  state.receiptCatSelection.forEach(code => {
+    if (!state.excludedReceiptCodes.includes(code)) state.excludedReceiptCodes.push(code);
+    getSortedReceiptYears().forEach(y => {
+      state.receiptYears[y].items = state.receiptYears[y].items.filter(i => i.itemCode !== code);
+    });
+  });
+  saveExcludedReceiptCodes();
+  saveReceiptYears();
+  state.receiptCatSelection.clear();
+  updateExcludedReceiptCodesList();
+  updateReceiptManageLegend();
+  refreshCurrentPanel();
+}
+
+function bulkReassignReceiptPrompt(e) {
+  e.stopPropagation();
+  const dd = document.getElementById('catDropdown');
+  const cats = getAssignableReceiptCategories();
+  dd.innerHTML = cats.map(c =>
+    `<div class="cat-select-opt" onclick="bulkAssignReceiptCat('${c}')">
+      <div class="cat-dot" style="background:${getReceiptCatColor(c)};"></div>${c}
+    </div>`
+  ).join('');
+  const btn = e.currentTarget;
+  const rect = btn.getBoundingClientRect();
+  dd.style.display = 'block';
+  dd.style.left = Math.min(rect.left, window.innerWidth - dd.offsetWidth - 8) + 'px';
+  dd.style.top = (rect.bottom + 4) + 'px';
+}
+
+function bulkAssignReceiptCat(cat) {
+  state.receiptCatSelection.forEach(code => { state.receiptLabels[code] = cat; });
+  saveReceiptLabels();
+  hideCatDropdown();
+  state.receiptCatSelection.clear();
+  updateReceiptManageLegend();
+  refreshCurrentPanel();
 }
 
 function excludeReceiptFromLegend(code) {

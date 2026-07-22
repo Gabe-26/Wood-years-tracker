@@ -716,7 +716,7 @@
 
 <!-- Profit Drill Modal -->
 <div id="profitDrillModal" onclick="if(event.target===this)closeProfitDrillModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9000;align-items:center;justify-content:center;">
-  <div style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:90%;max-width:900px;max-height:88vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,0.7);">
+  <div style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:94%;max-width:1200px;max-height:88vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,0.7);">
     <div style="padding:20px 24px 16px;border-bottom:1px solid var(--border);display:flex;align-items:baseline;justify-content:space-between;">
       <div>
         <div id="drillModalTitle" style="font-size:16px;font-weight:600;font-family:'IBM Plex Mono',monospace;color:var(--text1);"></div>
@@ -5183,12 +5183,18 @@ function runReceiptsItemDetail() {
       <div class="chart-title" id="rcptItemTotalChartTitle">Annual Totals — ${getReceiptMetricLabel()}</div>
       <div class="chart-container"><canvas id="rcptItemTotalChart"></canvas></div>
     </div>
+    <div class="profit-section">
+      <div class="profit-section-title">Cost Per Item</div>
+      <div id="rcptProfitabilitySection"></div>
+    </div>
   `;
 
   state.receiptItemExcludedYears = [];
+  state.receiptItemProfitExcludedYears = [];
   renderReceiptItemTable();
   renderReceiptItemChart();
   renderReceiptItemTotalChart();
+  renderReceiptCostSection(yearData);
 }
 
 function toggleReceiptItemYear(year) {
@@ -5198,6 +5204,182 @@ function toggleReceiptItemYear(year) {
   else state.receiptItemExcludedYears.splice(idx, 1);
   renderReceiptItemTable();
   renderReceiptItemChart();
+}
+
+// ═══════════════════════════════════════════════
+// RECEIPTS — COST PER ITEM
+// ═══════════════════════════════════════════════
+function toggleReceiptProfitYear(year) {
+  if (!state.receiptItemProfitExcludedYears) state.receiptItemProfitExcludedYears = [];
+  const idx = state.receiptItemProfitExcludedYears.indexOf(year);
+  if (idx === -1) state.receiptItemProfitExcludedYears.push(year);
+  else state.receiptItemProfitExcludedYears.splice(idx, 1);
+  const tbody = document.getElementById('rcptItemTbody');
+  if (!tbody) return;
+  const allYearData = JSON.parse(tbody.dataset.yeardata);
+  renderReceiptCostSection(allYearData);
+}
+
+
+function renderReceiptCostSection(yearData) {
+  const el = document.getElementById('rcptProfitabilitySection');
+  if (!el) return;
+  if (!state.receiptItemProfitExcludedYears) state.receiptItemProfitExcludedYears = [];
+
+  const rows = yearData.map(yd => {
+    const received = yd.received || Array(12).fill(0);
+    const produced = yd.produced || Array(12).fill(0);
+    const cogs = yd.cogs || Array(12).fill(0);
+    // Some items are received from a vendor, others are made in-house (never
+    // "received" — Qty Received stays 0 while COGS still applies). Use
+    // whichever quantity actually moved that period so Avg Cost/Item is
+    // never blank just because an item happens to be produced, not received.
+    const effQty = received.map((r,i) => r > 0 ? r : produced[i]);
+    const avgCost = effQty.map((q,i) => q > 0 ? cogs[i] / q : null);
+    const totRecv = received.reduce((a,b)=>a+b,0);
+    const totProd = produced.reduce((a,b)=>a+b,0);
+    const totCogs = cogs.reduce((a,b)=>a+b,0);
+    const totEffQty = effQty.reduce((a,b)=>a+b,0);
+    const totAvg = totEffQty > 0 ? totCogs / totEffQty : null;
+    return { year: yd.year, received, produced, cogs, effQty, avgCost, totRecv, totProd, totCogs, totEffQty, totAvg };
+  });
+
+  const pCols = Array.from({length:12},(_,i)=>'P'+(i+1));
+  const tableHTML = `
+    <div class="profit-table-wrap">
+      <table class="profit-table">
+        <thead>
+          <tr>
+            <th style="text-align:left;min-width:120px;">Year / Metric</th>
+            ${pCols.map(p=>`<th>${p}</th>`).join('')}
+            <th>Year Avg</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => {
+            const excluded = state.receiptItemProfitExcludedYears.includes(r.year);
+            const fadeStyle = excluded ? 'opacity:0.3;' : '';
+            const drillData = JSON.stringify({
+              year: r.year, received: r.received, produced: r.produced, cogs: r.cogs, effQty: r.effQty,
+              totRecv: r.totRecv, totProd: r.totProd, totCogs: r.totCogs, totEffQty: r.totEffQty, totAvg: r.totAvg
+            }).replace(/'/g, "&#39;");
+            return `
+              <tr class="row-year-header" data-rcpt-profit-year="${r.year}" onclick="toggleReceiptProfitYear(${r.year})" style="cursor:pointer;" title="Click to show/hide">
+                <td colspan="14" style="text-align:left;">
+                  <span style="${excluded ? 'text-decoration:line-through;color:var(--text3);' : ''}">${r.year}</span>
+                  <button onclick="event.stopPropagation();openReceiptProfitDrillModal(this)" data-drill='${drillData}'
+                    style="margin-left:10px;padding:1px 7px;font-size:9px;font-family:'IBM Plex Mono',monospace;
+                    background:transparent;border:1px solid #444;color:#888;border-radius:3px;cursor:pointer;
+                    letter-spacing:0.05em;" title="Open breakdown">▸ DETAIL</button>
+                </td>
+              </tr>
+              <tr style="${fadeStyle}">
+                <td style="color:var(--text3);padding-left:16px;">Qty Received</td>
+                ${r.received.map(v=>`<td class="row-rev">${v===0?'—':fmt(v)}</td>`).join('')}
+                <td class="row-rev" style="font-weight:600;">${fmt(r.totRecv)}</td>
+              </tr>
+              <tr style="${fadeStyle}">
+                <td style="color:var(--text3);padding-left:16px;">Qty Produced</td>
+                ${r.produced.map(v=>`<td class="row-rev">${v===0?'—':fmt(v)}</td>`).join('')}
+                <td class="row-rev" style="font-weight:600;">${fmt(r.totProd)}</td>
+              </tr>
+              <tr style="${fadeStyle}">
+                <td style="color:var(--text3);padding-left:16px;">COGS</td>
+                ${r.cogs.map(v=>`<td class="row-cogs">${v===0?'—':fmtMoney(v)}</td>`).join('')}
+                <td class="row-cogs" style="font-weight:600;">${fmtMoney(r.totCogs)}</td>
+              </tr>
+              <tr style="${fadeStyle}">
+                <td style="color:var(--text3);padding-left:16px;">Avg Cost / Item</td>
+                ${r.avgCost.map(v=>`<td class="row-gp-pos">${v===null?'—':'$'+v.toFixed(2)}</td>`).join('')}
+                <td class="row-gp-pos" style="font-weight:600;">${r.totAvg===null?'—':'$'+r.totAvg.toFixed(2)}</td>
+              </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  el.innerHTML = tableHTML;
+}
+
+function openReceiptProfitDrillModal(btn) {
+  const d = JSON.parse(btn.dataset.drill);
+
+  const fmtQty  = v => v === 0 ? '—' : v.toLocaleString();
+  const fmtAvg  = v => v === null ? '—' : '$'+v.toFixed(2);
+
+  const summaryHTML = `
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;">
+      ${[
+        {label:'Qty Received', val:fmtQty(d.totRecv), color:'var(--blue)'},
+        {label:'Qty Produced', val:fmtQty(d.totProd), color:'var(--purple)'},
+        {label:'Total COGS',   val:fmtMoney(d.totCogs), color:'var(--text2)'},
+        {label:'Avg Cost / Item', val:fmtAvg(d.totAvg), color:'#e09040'},
+      ].map(c=>`
+        <div style="background:var(--surface3);border-radius:6px;padding:10px 14px;border:1px solid var(--border);">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-bottom:4px;">${c.label}</div>
+          <div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:${c.color};">${c.val}</div>
+        </div>`).join('')}
+    </div>`;
+
+  const qColors = ['#5b9bd5','#4caf7d','#c8a84b','#9b7fd4'];
+
+  const quartersHTML = Array.from({length:4}, (_, qi) => {
+    const ps = [qi*3, qi*3+1, qi*3+2];
+    const qRecv = ps.reduce((s,i)=>s+d.received[i],0);
+    const qProd = ps.reduce((s,i)=>s+d.produced[i],0);
+    const qCogs = ps.reduce((s,i)=>s+d.cogs[i],0);
+    const qEffQty = ps.reduce((s,i)=>s+d.effQty[i],0);
+    const qAvg = qEffQty > 0 ? qCogs / qEffQty : null;
+    const qc = qColors[qi];
+
+    const labelStyle = `font-size:9px;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3);font-family:'IBM Plex Mono',monospace;padding:4px 12px 3px;`;
+    const colStyle   = `text-align:right;padding:4px 12px;font-size:11px;font-family:'IBM Plex Mono',monospace;white-space:nowrap;border-top:1px solid var(--border);`;
+    const totStyle   = `text-align:right;padding:4px 12px;font-size:11px;font-family:'IBM Plex Mono',monospace;white-space:nowrap;border-top:1px solid var(--border);background:var(--surface1);font-weight:700;`;
+
+    return `
+      <div style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;overflow:hidden;">
+        <div style="background:${qc}18;border-bottom:2px solid ${qc};padding:7px 14px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:${qc};">Q${qi+1}</span>
+          <span style="font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--text3);">P${ps[0]+1} · P${ps[1]+1} · P${ps[2]+1}</span>
+          <span style="font-size:11px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#e09040;">${fmtAvg(qAvg)}</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;">
+          <thead><tr>
+            <th style="${labelStyle}text-align:left;"> </th>
+            ${ps.map(i=>`<th style="${labelStyle}text-align:right;">P${i+1}</th>`).join('')}
+            <th style="${labelStyle}text-align:right;color:${qc};">Total</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td style="${labelStyle}">Qty Received</td>
+              ${ps.map(i=>`<td style="${colStyle}color:var(--blue);">${fmtQty(d.received[i])}</td>`).join('')}
+              <td style="${totStyle}color:var(--blue);">${fmtQty(qRecv)}</td>
+            </tr>
+            <tr>
+              <td style="${labelStyle}">Qty Produced</td>
+              ${ps.map(i=>`<td style="${colStyle}color:var(--purple);">${fmtQty(d.produced[i])}</td>`).join('')}
+              <td style="${totStyle}color:var(--purple);">${fmtQty(qProd)}</td>
+            </tr>
+            <tr>
+              <td style="${labelStyle}">COGS</td>
+              ${ps.map(i=>`<td style="${colStyle}color:var(--text2);">${fmtMoney(d.cogs[i])}</td>`).join('')}
+              <td style="${totStyle}color:var(--text2);">${fmtMoney(qCogs)}</td>
+            </tr>
+            <tr style="background:var(--surface1);">
+              <td style="${labelStyle}">Avg Cost / Item</td>
+              ${ps.map(i=>`<td style="${colStyle}color:#e09040;font-weight:600;">${fmtAvg(d.effQty[i]>0?d.cogs[i]/d.effQty[i]:null)}</td>`).join('')}
+              <td style="${totStyle}color:#e09040;">${fmtAvg(qAvg)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>`;
+  }).join('');
+
+  const quartersWrap = `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">${quartersHTML}</div>`;
+  document.getElementById('drillModalTitle').textContent = `${d.year} — Cost Per Item Breakdown`;
+  document.getElementById('drillModalSub').textContent = `Qty Received · Qty Produced · COGS · Avg Cost / Item (uses whichever quantity is nonzero per period)`;
+  document.getElementById('drillModalBody').innerHTML = summaryHTML + quartersWrap;
+  document.getElementById('profitDrillModal').style.display = 'flex';
 }
 
 function renderReceiptItemTable() {

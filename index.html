@@ -796,6 +796,7 @@
       <div class="toplevel-tab active" data-dtype="sales" onclick="setDataType('sales')">💰 SALES</div>
       <div class="toplevel-tab" data-dtype="receipts" onclick="setDataType('receipts')">📦 RECEIPTS</div>
       <div class="toplevel-tab" data-dtype="issues" onclick="setDataType('issues')">🔨 ISSUES</div>
+      <div class="toplevel-tab" data-dtype="streport" id="stReportToplevelTab" onclick="showSTReport()">📋 ST REPORT</div>
     </div>
 
     <!-- TABS -->
@@ -1415,11 +1416,90 @@
       </div>
     </div>
 
+    <!-- ═══════════════════════════════════
+         ST REPORT TAB (Inventory Stock Status Report — session-only, not saved;
+         Saved Views ARE persisted to localStorage, see aii_wood_streport_views)
+    ═══════════════════════════════════ -->
+    <div class="panel" id="panel-streport">
+      <div style="display:flex;gap:8px;padding:10px 20px 0;">
+        <div class="period-selector" id="stReportModeSel">
+          <div class="period-btn active" onclick="setSTReportMode('table')">📊 TABLE</div>
+          <div class="period-btn" onclick="setSTReportMode('manage')">⚙️ MANAGE VIEWS</div>
+        </div>
+      </div>
+
+      <div id="stReportTableView" style="display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
+        <div class="toolbar" style="flex-wrap:wrap;gap:8px;">
+          <button class="btn-sm accent" onclick="document.getElementById('stReportFileInput').click()">📂 Upload CSV</button>
+          <input type="file" id="stReportFileInput" accept=".csv" style="display:none;">
+          <div class="toolbar-group" id="stReportFileInfo" style="display:none;">
+            <span class="toolbar-label">Loaded</span>
+            <span class="text-muted mono" id="stReportFileName" style="font-size:11px;"></span>
+          </div>
+          <div class="toolbar-group">
+            <span class="toolbar-label">Saved View</span>
+            <select id="stReportViewFilter" style="width:150px;" onchange="filterSTReportView(this.value)">
+              <option value="">All Items</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <span class="toolbar-label">Prod Line</span>
+            <select id="stReportProdLineFilter" style="width:150px;" onchange="filterSTReportProdLine(this.value)">
+              <option value="">All Prod Lines</option>
+            </select>
+          </div>
+          <div class="toolbar-group" style="flex:1;min-width:180px;">
+            <input type="text" id="stReportSearchInput" placeholder="Search item code or description..." style="width:100%;max-width:260px;" oninput="filterSTReportSearch(this.value)">
+          </div>
+          <div class="flex-grow"></div>
+          <div class="toolbar-group">
+            <span class="toolbar-label">Warehouses</span>
+            <div class="period-selector" id="stReportWhseModeSel">
+              <div class="period-btn active" onclick="setSTReportWhseMode(false)">SPLIT</div>
+              <div class="period-btn" onclick="setSTReportWhseMode(true)">COMBINED</div>
+            </div>
+          </div>
+          <div class="toolbar-group">
+            <span class="toolbar-label">Metric</span>
+            <div class="period-selector" id="stReportMetricSel">
+              <div class="period-btn" onclick="setSTReportMetric('all')">ALL</div>
+              <div class="period-btn active" onclick="setSTReportMetric('onHand')">ON HAND</div>
+              <div class="period-btn" onclick="setSTReportMetric('onPO')">ON PO</div>
+              <div class="period-btn" onclick="setSTReportMetric('onSO')">ON SO</div>
+              <div class="period-btn" onclick="setSTReportMetric('onBO')">BACK ORD</div>
+              <div class="period-btn" onclick="setSTReportMetric('available')">AVAILABLE</div>
+              <div class="period-btn" onclick="setSTReportMetric('reorder')">REORDER</div>
+            </div>
+          </div>
+          <button class="btn-sm" onclick="exportPDF('stReport')" title="Export to PDF">⬇ PDF</button>
+        </div>
+
+        <div class="stats-bar" id="stReportStats" style="display:none;"></div>
+
+        <div class="panel-scroll" style="flex:1;min-height:0;">
+          <div id="stReportContent">
+            <div class="empty-state">
+              <div class="empty-icon">📋</div>
+              <div class="empty-title">No stock status data loaded</div>
+              <div class="empty-sub">Upload an Inventory Stock Status Report CSV above. This is a daily snapshot — it isn't saved between sessions, so re-upload each time.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="stReportManageView" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
+        <div class="panel-scroll" style="flex:1;min-height:0;">
+          <div id="stReportManageContent" style="padding:20px;max-width:700px;"></div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
 <!-- CATEGORY DROPDOWN (floating) -->
 <div class="cat-select-dropdown" id="catDropdown" style="display:none;"></div>
+
 
 <!-- TOOLTIP -->
 <div class="tooltip" id="tooltip"></div>
@@ -1986,6 +2066,98 @@ function isSalesCSV(text) {
 }
 
 // ═══════════════════════════════════════════════
+// ST REPORT CSV PARSER (Inventory Stock Status Report)
+// ═══════════════════════════════════════════════
+// One row per item PER WAREHOUSE (no year dimension — this is a point-in-time
+// snapshot). Every row for an item repeats that item's grand-total block
+// (cols 52/57-62), identical across all its warehouse rows — same "dedupe,
+// don't sum" shape as Receipts single-year, except here the per-warehouse
+// rows themselves are the data we want, not just something to collapse.
+//   Item Code + Description combined: col 21 (split on first run of 2+ spaces)
+//   "Cycle:" label col 24, Avg Cost value col 26 (per-item, constant across
+//     that item's warehouse rows)
+//   Prod Line col 28 · Product Type col 29 · UOM col 30 · Warehouse col 31
+//   On Hand/On PO/On SO/On Back Order/Available/Reorder Point: cols 32-37 (per warehouse)
+//   "Item [code] Total:" grand total across warehouses: cols 57-62
+function isStockStatusCSV(text) {
+  return text.includes('Inventory Stock Status Report');
+}
+
+// This report's own column headers (e.g. "Primary Vendor\n\nNumber") are quoted
+// multi-line cells that get repeated as boilerplate on every data row — so a
+// naive split('\n') (fine for Sales/Receipts/Issues) shatters every row into
+// ~23 fragments here. Records must be split only on newlines OUTSIDE quotes.
+function splitStockStatusRecords(text) {
+  const records = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '"') {
+      if (inQuotes && text[i + 1] === '"') { current += '""'; i++; }
+      else { inQuotes = !inQuotes; current += ch; }
+    } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      if (current.trim() !== '') records.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  if (current.trim() !== '') records.push(current);
+  return records;
+}
+
+function parseStockStatusCSV(text) {
+  const lines = splitStockStatusRecords(text);
+  const items = new Map(); // itemCode -> item object
+
+  const parseAmt = (raw) => {
+    raw = (raw || '').trim().replace(/,/g, '');
+    if (!raw) return 0;
+    const isNeg = raw.endsWith('-');
+    const num = parseFloat(raw.replace('-', '')) || 0;
+    return isNeg ? -num : num;
+  };
+
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const cols = parseCSVLine(line);
+    if (cols.length < 60) continue;
+
+    const codeDesc = (cols[21] || '').trim();
+    if (!codeDesc || codeDesc === 'Item Code/Description') continue;
+
+    const m = codeDesc.match(/^(\S+)\s{2,}(.*)$/);
+    const itemCode = m ? m[1] : codeDesc;
+    const description = m ? m[2].trim() : '';
+
+    const prodLine = (cols[28] || '').trim();
+    const uom = (cols[30] || '').trim();
+    const whse = (cols[31] || '').trim();
+    const avgCost = parseAmt(cols[26]);
+
+    if (!items.has(itemCode)) {
+      items.set(itemCode, {
+        itemCode, description, prodLine, uom, avgCost,
+        warehouses: {},
+        total: {
+          onHand: parseAmt(cols[57]), onPO: parseAmt(cols[58]), onSO: parseAmt(cols[59]),
+          onBO: parseAmt(cols[60]), available: parseAmt(cols[61]), reorder: parseAmt(cols[62])
+        }
+      });
+    }
+    if (whse) {
+      items.get(itemCode).warehouses[whse] = {
+        onHand: parseAmt(cols[32]), onPO: parseAmt(cols[33]), onSO: parseAmt(cols[34]),
+        onBO: parseAmt(cols[35]), available: parseAmt(cols[36]), reorder: parseAmt(cols[37])
+      };
+    }
+  }
+  return Array.from(items.values());
+}
+
+// ═══════════════════════════════════════════════
 // FILE UPLOAD
 // ═══════════════════════════════════════════════
 function handleFiles(files) {
@@ -2047,6 +2219,463 @@ const uploadZone = document.getElementById('uploadZone');
 uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
 uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
 uploadZone.addEventListener('drop', e => { e.preventDefault(); uploadZone.classList.remove('drag-over'); handleFiles(e.dataTransfer.files); });
+
+// ═══════════════════════════════════════════════
+// ST REPORT — state, view, filter/sort, upload
+// (session-only: not persisted to IndexedDB/localStorage; fully isolated from
+// state.dataType, so no dtype branch needed in shared handlers)
+// ═══════════════════════════════════════════════
+let stReportItems = null;        // array of parsed items, or null if nothing loaded yet
+let stReportFilename = '';
+let stReportMetric = 'onHand';   // onHand | onPO | onSO | onBO | available | reorder | all
+let stReportCombineWarehouses = false;  // true = hide per-warehouse columns, show Total(s) only
+let stReportProdLineFilterVal = '';
+let stReportSearchVal = '';
+let stReportSort = { col: 'itemCode', dir: 'asc' };
+const ST_METRIC_LABELS = { onHand: 'On Hand', onPO: 'On PO', onSO: 'On SO', onBO: 'Back Order', available: 'Available', reorder: 'Reorder Pt', all: 'All Metrics' };
+const ST_ALL_METRICS = ['onHand', 'onPO', 'onSO', 'onBO', 'available', 'reorder'];
+const ST_METRIC_ABBREV = { onHand: 'Hand', onPO: 'PO', onSO: 'SO', onBO: 'B/O', available: 'Avail', reorder: 'Reord' };
+
+// Saved Views: unlike the stock status data itself, these ARE persisted —
+// they're just named lists of item codes a person wants to jump back to
+// repeatably, independent of which day's file is currently loaded.
+let stReportMode = 'table';      // 'table' | 'manage'
+let stReportViews = {};          // { viewName: [itemCode, ...] }
+let stReportViewFilterVal = '';  // selected saved view for the table filter, or '' for all
+let stReportEditingView = null;  // view name currently open in the Manage editor, or null
+
+function loadSTReportViews() {
+  try {
+    const raw = localStorage.getItem('aii_wood_streport_views');
+    if (raw) stReportViews = JSON.parse(raw);
+  } catch (e) {}
+}
+function saveSTReportViews() {
+  try { localStorage.setItem('aii_wood_streport_views', JSON.stringify(stReportViews)); } catch (e) {}
+}
+
+function setSTReportMode(mode) {
+  stReportMode = mode;
+  document.querySelectorAll('#stReportModeSel .period-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('stReportTableView').style.display = mode === 'table' ? 'flex' : 'none';
+  document.getElementById('stReportManageView').style.display = mode === 'manage' ? 'flex' : 'none';
+  if (mode === 'manage') renderSTReportManage();
+}
+
+function setSTReportWhseMode(combine) {
+  stReportCombineWarehouses = combine;
+  document.querySelectorAll('#stReportWhseModeSel .period-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  renderSTReportTable();
+}
+
+function showSTReport() {
+  document.querySelectorAll('.toplevel-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('stReportToplevelTab').classList.add('active');
+  const curPanel = document.querySelector('.panel.active');
+  if (curPanel) curPanel.classList.remove('active');
+  document.querySelector('.tabs').style.display = 'none';
+  document.getElementById('panel-streport').classList.add('active');
+}
+
+function handleSTReportFiles(files) {
+  const file = files[0];
+  if (!file || !file.name.endsWith('.csv')) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result;
+    if (!isStockStatusCSV(text)) {
+      alert(`Unrecognized CSV format in: ${file.name}\nExpected an Inventory Stock Status Report.`);
+      return;
+    }
+    const items = parseStockStatusCSV(text);
+    if (!items.length) {
+      alert(`No stock status data found in: ${file.name}`);
+      return;
+    }
+    stReportItems = items;
+    stReportFilename = file.name;
+    stReportProdLineFilterVal = '';
+    stReportSearchVal = '';
+    stReportSort = { col: 'itemCode', dir: 'asc' };
+    const searchInput = document.getElementById('stReportSearchInput');
+    if (searchInput) searchInput.value = '';
+    renderSTReport();
+  };
+  reader.readAsText(file);
+}
+document.getElementById('stReportFileInput').addEventListener('change', e => handleSTReportFiles(e.target.files));
+
+function getSTReportWarehouses() {
+  if (!stReportItems) return [];
+  const set = new Set();
+  stReportItems.forEach(it => Object.keys(it.warehouses).forEach(w => set.add(w)));
+  return Array.from(set).sort();
+}
+
+function renderSTReport() {
+  const fileInfo = document.getElementById('stReportFileInfo');
+  const fileNameEl = document.getElementById('stReportFileName');
+  if (stReportItems) {
+    fileInfo.style.display = '';
+    fileNameEl.textContent = `${stReportFilename} (${stReportItems.length} items)`;
+  } else {
+    fileInfo.style.display = 'none';
+  }
+
+  const sel = document.getElementById('stReportProdLineFilter');
+  const curVal = stReportProdLineFilterVal;
+  if (stReportItems) {
+    const counts = new Map();
+    stReportItems.forEach(it => {
+      const pl = it.prodLine || '(none)';
+      counts.set(pl, (counts.get(pl) || 0) + 1);
+    });
+    const sortedPL = Array.from(counts.keys()).sort();
+    sel.innerHTML = `<option value="">All Prod Lines (${stReportItems.length})</option>` +
+      sortedPL.map(pl => `<option value="${pl}" ${pl === curVal ? 'selected' : ''}>${pl} (${counts.get(pl)})</option>`).join('');
+  }
+
+  updateSTReportViewFilterOptions();
+  renderSTReportTable();
+}
+
+// Saved Views persist independent of whether any CSV is currently loaded, so
+// this is called both at page init and whenever a view is added/renamed/deleted.
+function updateSTReportViewFilterOptions() {
+  const sel = document.getElementById('stReportViewFilter');
+  if (!sel) return;
+  const curVal = stReportViewFilterVal;
+  const names = Object.keys(stReportViews).sort();
+  sel.innerHTML = `<option value="">All Items</option>` +
+    names.map(n => `<option value="${n}" ${n === curVal ? 'selected' : ''}>${n} (${stReportViews[n].length})</option>`).join('');
+}
+
+function filterSTReportView(val) {
+  stReportViewFilterVal = val;
+  renderSTReportTable();
+}
+
+function filterSTReportProdLine(val) {
+  stReportProdLineFilterVal = val;
+  renderSTReportTable();
+}
+
+function filterSTReportSearch(val) {
+  stReportSearchVal = val.trim().toLowerCase();
+  renderSTReportTable();
+}
+
+function setSTReportMetric(m) {
+  stReportMetric = m;
+  document.querySelectorAll('#stReportMetricSel .period-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  renderSTReportTable();
+}
+
+function sortSTReportTable(col) {
+  if (stReportSort.col === col) stReportSort.dir = stReportSort.dir === 'asc' ? 'desc' : 'asc';
+  else stReportSort = { col, dir: 'asc' };
+  renderSTReportTable();
+}
+
+function getSTReportSortVal(item, col) {
+  if (col === 'itemCode') return item.itemCode;
+  if (col === 'description') return item.description;
+  if (col === 'prodLine') return item.prodLine;
+  if (col === 'avgCost') return item.avgCost;
+  const parts = col.split(':');
+  if (parts[0] === 'total') return item.total[parts[1] || stReportMetric] || 0;
+  if (parts[0] === 'whse') {
+    const w = item.warehouses[parts[1]];
+    const metric = parts[2] || stReportMetric;
+    return w ? (w[metric] || 0) : 0;
+  }
+  return '';
+}
+
+function fmtSTQty(n) { return (!n) ? '—' : Math.round(n).toLocaleString(); }
+
+function getSTReportVisibleRows() {
+  let rows = stReportItems || [];
+  if (stReportViewFilterVal && stReportViews[stReportViewFilterVal]) {
+    const codeSet = new Set(stReportViews[stReportViewFilterVal]);
+    rows = rows.filter(it => codeSet.has(it.itemCode));
+  }
+  if (stReportProdLineFilterVal) {
+    rows = rows.filter(it => (it.prodLine || '(none)') === stReportProdLineFilterVal);
+  }
+  if (stReportSearchVal) {
+    rows = rows.filter(it =>
+      it.itemCode.toLowerCase().includes(stReportSearchVal) ||
+      (it.description || '').toLowerCase().includes(stReportSearchVal)
+    );
+  }
+  const { col, dir } = stReportSort;
+  rows = [...rows].sort((a, b) => {
+    const av = getSTReportSortVal(a, col), bv = getSTReportSortVal(b, col);
+    const cmp = (typeof av === 'string') ? av.localeCompare(bv) : (av - bv);
+    return dir === 'asc' ? cmp : -cmp;
+  });
+  return rows;
+}
+
+function renderSTReportTable() {
+  const content = document.getElementById('stReportContent');
+  const statsEl = document.getElementById('stReportStats');
+
+  if (!stReportItems) {
+    statsEl.style.display = 'none';
+    content.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">📋</div>
+      <div class="empty-title">No stock status data loaded</div>
+      <div class="empty-sub">Upload an Inventory Stock Status Report CSV above. This is a daily snapshot — it isn't saved between sessions, so re-upload each time.</div>
+    </div>`;
+    return;
+  }
+
+  const warehouses = getSTReportWarehouses();
+  const isAll = stReportMetric === 'all';
+  const metricsToShow = isAll ? ST_ALL_METRICS : [stReportMetric];
+  const showWhseCols = !stReportCombineWarehouses;
+  const rows = getSTReportVisibleRows();
+
+  statsEl.style.display = 'flex';
+  const itemsCard = `<div class="stat-card"><div class="stat-label">Items Shown</div><div class="stat-value">${rows.length.toLocaleString()}</div><div class="stat-sub">of ${stReportItems.length}</div></div>`;
+  const metricCards = metricsToShow.map(m => {
+    const sum = rows.reduce((s, it) => s + (it.total[m] || 0), 0);
+    return `<div class="stat-card"><div class="stat-label">Total ${ST_METRIC_LABELS[m]}</div><div class="stat-value">${Math.round(sum).toLocaleString()}</div><div class="stat-sub">filtered</div></div>`;
+  }).join('');
+  statsEl.innerHTML = itemsCard + metricCards;
+
+  const thStyle = (c) => `onclick="sortSTReportTable('${c}')" class="${stReportSort.col === c ? (stReportSort.dir === 'asc' ? 'sorted-asc' : 'sorted-desc') : ''}"`;
+
+  let theadHTML;
+  if (!isAll) {
+    // Single metric — plain one-row header (unchanged from before ALL/combine existed)
+    theadHTML = `<tr>
+      <th ${thStyle('itemCode')}>Item Code</th>
+      <th ${thStyle('description')}>Description</th>
+      <th ${thStyle('prodLine')}>Prod Line</th>
+      <th ${thStyle('avgCost')} style="text-align:right">Avg Cost</th>
+      ${showWhseCols ? warehouses.map(w => `<th ${thStyle('whse:' + w)} style="text-align:right">Whse ${w}</th>`).join('') : ''}
+      <th ${thStyle('total')} style="text-align:right">Total</th>
+    </tr>`;
+  } else {
+    // ALL metrics — two-row grouped header (Whse 000 / Whse 001 / ... / Total, each spanning 6 metric sub-columns).
+    // Sticky positioning is disabled here (position:static) since the two rows would otherwise overlap when scrolling.
+    const whseGroupRow1 = showWhseCols ? warehouses.map(w =>
+      `<th colspan="${metricsToShow.length}" style="text-align:center;position:static;border-left:1px solid var(--border2);">Whse ${w}</th>`
+    ).join('') : '';
+    const totalGroupRow1 = `<th colspan="${metricsToShow.length}" style="text-align:center;position:static;border-left:1px solid var(--border2);">Total</th>`;
+    const row1 = `<tr>
+      <th rowspan="2" style="position:static;" ${thStyle('itemCode')}>Item Code</th>
+      <th rowspan="2" style="position:static;" ${thStyle('description')}>Description</th>
+      <th rowspan="2" style="position:static;" ${thStyle('prodLine')}>Prod Line</th>
+      <th rowspan="2" style="text-align:right;position:static;" ${thStyle('avgCost')}>Avg Cost</th>
+      ${whseGroupRow1}${totalGroupRow1}
+    </tr>`;
+    const whseGroupRow2 = showWhseCols ? warehouses.map(w =>
+      metricsToShow.map(m => `<th style="text-align:right;font-size:9px;position:static;" ${thStyle('whse:' + w + ':' + m)}>${ST_METRIC_ABBREV[m]}</th>`).join('')
+    ).join('') : '';
+    const totalGroupRow2 = metricsToShow.map(m => `<th style="text-align:right;font-size:9px;position:static;" ${thStyle('total:' + m)}>${ST_METRIC_ABBREV[m]}</th>`).join('');
+    theadHTML = row1 + `<tr>${whseGroupRow2}${totalGroupRow2}</tr>`;
+  }
+
+  const bodyRows = rows.map(it => {
+    const fixedCells = `
+      <td class="td-code">${it.itemCode}</td>
+      <td class="td-desc" title="${it.description}">${it.description || '—'}</td>
+      <td class="text-muted mono">${it.prodLine || '—'}</td>
+      <td class="td-num">${it.avgCost ? '$' + it.avgCost.toFixed(3) : '—'}</td>`;
+    const whseCells = showWhseCols ? warehouses.map(w =>
+      metricsToShow.map(m => {
+        const v = (it.warehouses[w] && it.warehouses[w][m]) || 0;
+        return `<td class="td-num ${v === 0 ? 'zero' : ''}">${fmtSTQty(v)}</td>`;
+      }).join('')
+    ).join('') : '';
+    const totalCells = metricsToShow.map(m => `<td class="td-num" style="font-weight:600;">${fmtSTQty(it.total[m] || 0)}</td>`).join('');
+    return `<tr>${fixedCells}${whseCells}${totalCells}</tr>`;
+  }).join('');
+
+  content.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>${theadHTML}</thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+    </div>
+    ${rows.length === 0 ? '<div class="no-data">No items match current filters.</div>' : ''}
+  `;
+}
+
+// Builds the PDF version of the current table straight from the data model
+// (same rows/warehouses/metrics logic as renderSTReportTable) rather than
+// scraping the live DOM table — scraping flattens the two-row ALL-mode header
+// into one row, which no longer lines up with the per-row data cells.
+function buildSTReportPDFTable() {
+  if (!stReportItems) return '';
+  const warehouses = getSTReportWarehouses();
+  const isAll = stReportMetric === 'all';
+  const metricsToShow = isAll ? ST_ALL_METRICS : [stReportMetric];
+  const showWhseCols = !stReportCombineWarehouses;
+  const rows = getSTReportVisibleRows();
+
+  let theadHTML;
+  if (!isAll) {
+    const whseHeaders = showWhseCols ? warehouses.map(w => `<th class="num">Whse ${w}</th>`).join('') : '';
+    theadHTML = `<tr><th>Item Code</th><th>Description</th><th>Prod Line</th><th class="num">Avg Cost</th>${whseHeaders}<th class="num">Total</th></tr>`;
+  } else {
+    const whseGroupRow1 = showWhseCols ? warehouses.map(w => `<th colspan="${metricsToShow.length}" class="num">Whse ${w}</th>`).join('') : '';
+    const totalGroupRow1 = `<th colspan="${metricsToShow.length}" class="num">Total</th>`;
+    const row1 = `<tr><th rowspan="2">Item Code</th><th rowspan="2">Description</th><th rowspan="2">Prod Line</th><th rowspan="2" class="num">Avg Cost</th>${whseGroupRow1}${totalGroupRow1}</tr>`;
+    const whseGroupRow2 = showWhseCols ? warehouses.map(w => metricsToShow.map(m => `<th class="num">${ST_METRIC_ABBREV[m]}</th>`).join('')).join('') : '';
+    const totalGroupRow2 = metricsToShow.map(m => `<th class="num">${ST_METRIC_ABBREV[m]}</th>`).join('');
+    theadHTML = row1 + `<tr>${whseGroupRow2}${totalGroupRow2}</tr>`;
+  }
+
+  const bodyRows = rows.map(it => {
+    const fixedCells = `<td class="td-code">${it.itemCode}</td><td class="td-desc">${it.description || '—'}</td><td>${it.prodLine || '—'}</td><td class="num">${it.avgCost ? '$' + it.avgCost.toFixed(3) : '—'}</td>`;
+    const whseCells = showWhseCols ? warehouses.map(w =>
+      metricsToShow.map(m => {
+        const v = (it.warehouses[w] && it.warehouses[w][m]) || 0;
+        return `<td class="num ${v === 0 ? 'zero' : ''}">${fmtSTQty(v)}</td>`;
+      }).join('')
+    ).join('') : '';
+    const totalCells = metricsToShow.map(m => `<td class="num">${fmtSTQty(it.total[m] || 0)}</td>`).join('');
+    return `<tr>${fixedCells}${whseCells}${totalCells}</tr>`;
+  }).join('');
+
+  return `<div class="pdf-section-title">Items</div><table class="pdf-table"><thead>${theadHTML}</thead><tbody>${bodyRows}</tbody></table>`;
+}
+
+// ═══════════════════════════════════════════════
+// ST REPORT — Saved Views (Manage Views tab)
+// ═══════════════════════════════════════════════
+function createSTReportView() {
+  const input = document.getElementById('newSTReportViewInput');
+  const name = (input.value || '').trim();
+  if (!name) return;
+  if (stReportViews[name]) { alert(`A view named "${name}" already exists.`); return; }
+  stReportViews[name] = [];
+  saveSTReportViews();
+  input.value = '';
+  stReportEditingView = name;
+  updateSTReportViewFilterOptions();
+  renderSTReportManage();
+}
+
+function deleteSTReportView(name) {
+  if (!confirm(`Delete the view "${name}"? This can't be undone.`)) return;
+  delete stReportViews[name];
+  saveSTReportViews();
+  if (stReportViewFilterVal === name) stReportViewFilterVal = '';
+  if (stReportEditingView === name) stReportEditingView = null;
+  updateSTReportViewFilterOptions();
+  renderSTReportManage();
+  renderSTReportTable();
+}
+
+function editSTReportView(name) {
+  stReportEditingView = name;
+  renderSTReportManage();
+}
+
+function backSTReportViews() {
+  stReportEditingView = null;
+  renderSTReportManage();
+}
+
+function renameSTReportView(oldName) {
+  const input = prompt('Rename view:', oldName);
+  if (!input) return;
+  const newName = input.trim();
+  if (!newName || newName === oldName) return;
+  if (stReportViews[newName]) { alert(`A view named "${newName}" already exists.`); return; }
+  stReportViews[newName] = stReportViews[oldName];
+  delete stReportViews[oldName];
+  if (stReportEditingView === oldName) stReportEditingView = newName;
+  if (stReportViewFilterVal === oldName) stReportViewFilterVal = newName;
+  saveSTReportViews();
+  updateSTReportViewFilterOptions();
+  renderSTReportManage();
+  renderSTReportTable();
+}
+
+function addSTReportViewItems() {
+  if (!stReportEditingView) return;
+  const input = document.getElementById('stReportViewItemInput');
+  const raw = input.value || '';
+  const codes = raw.split(/[,\s]+/).map(c => c.trim().toUpperCase()).filter(Boolean);
+  if (!codes.length) return;
+  const list = stReportViews[stReportEditingView];
+  codes.forEach(c => { if (!list.includes(c)) list.push(c); });
+  saveSTReportViews();
+  input.value = '';
+  updateSTReportViewFilterOptions();
+  renderSTReportManage();
+}
+
+function removeSTReportViewItem(name, itemCode) {
+  stReportViews[name] = (stReportViews[name] || []).filter(c => c !== itemCode);
+  saveSTReportViews();
+  updateSTReportViewFilterOptions();
+  renderSTReportManage();
+}
+
+function renderSTReportManage() {
+  const content = document.getElementById('stReportManageContent');
+
+  if (!stReportEditingView) {
+    const names = Object.keys(stReportViews).sort();
+    content.innerHTML = `
+      <div style="margin-bottom:24px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:10px;">Create New View</div>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="newSTReportViewInput" placeholder="View name, e.g. Weekly Check List" style="width:260px;" onkeydown="if(event.key==='Enter')createSTReportView()">
+          <button class="btn-sm accent" onclick="createSTReportView()">+ Create View</button>
+        </div>
+      </div>
+      <div style="height:1px;background:var(--border);margin-bottom:24px;"></div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:12px;">Saved Views</div>
+      ${names.length === 0 ? '<div class="no-data">No saved views yet — create one above, then add the item codes you check repeatedly.</div>' : names.map(name => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;margin-bottom:8px;">
+          <div>
+            <div style="font-weight:600;color:var(--text1);">${name}</div>
+            <div style="font-size:11px;color:var(--text3);">${stReportViews[name].length} item${stReportViews[name].length === 1 ? '' : 's'}</div>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn-sm" onclick="editSTReportView('${name}')">Edit</button>
+            <button class="btn-sm" onclick="renameSTReportView('${name}')">Rename</button>
+            <button class="btn-sm" onclick="deleteSTReportView('${name}')">Delete</button>
+          </div>
+        </div>
+      `).join('')}
+    `;
+  } else {
+    const name = stReportEditingView;
+    const items = stReportViews[name] || [];
+    content.innerHTML = `
+      <button class="btn-sm" onclick="backSTReportViews()">← Back to Views</button>
+      <div style="font-size:16px;font-weight:600;margin:14px 0 4px;color:var(--text1);">${name}</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:16px;">${items.length} item${items.length === 1 ? '' : 's'} saved</div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <input type="text" id="stReportViewItemInput" placeholder="Item code(s) — comma or space separated..." style="width:320px;text-transform:uppercase;" onkeydown="if(event.key==='Enter')addSTReportViewItems()">
+        <button class="btn-sm accent" onclick="addSTReportViewItems()">+ Add</button>
+      </div>
+      <div class="custom-labels-list">
+        ${items.length === 0 ? '<span class="text-muted" style="font-size:11px;">No items yet — add codes above.</span>' :
+          items.map(code => {
+            const known = !stReportItems || stReportItems.some(it => it.itemCode === code);
+            return `<div class="custom-label-tag" onclick="removeSTReportViewItem('${name}','${code}')" style="${known ? '' : 'opacity:0.5;'}" title="${known ? '' : 'Not found in the currently loaded file'}">
+              <span>${code}</span><span class="del-label">×</span>
+            </div>`;
+          }).join('')}
+      </div>
+    `;
+  }
+}
 
 // ═══════════════════════════════════════════════
 // UI UPDATE
@@ -2951,6 +3580,17 @@ function setDataTypeSectionVisibility(panelId, dataTypesAllowed) {
 }
 
 function setDataType(type) {
+  // Restore the normal sub-tab/panel view if we're coming back from ST Report mode
+  // (ST Report is a separate session-only view outside the sales/receipts/issues
+  // dtype system, so it never touches state.dataType — see showSTReport()).
+  const stPanel = document.getElementById('panel-streport');
+  if (stPanel && stPanel.classList.contains('active')) {
+    stPanel.classList.remove('active');
+    document.querySelector('.tabs').style.display = '';
+    const activeSubTab = document.querySelector('.tab.active') || document.querySelector('.tab[data-tab="compare"]');
+    document.getElementById('panel-' + activeSubTab.dataset.tab).classList.add('active');
+  }
+
   state.dataType = type;
   document.querySelectorAll('.toplevel-tab').forEach(t => t.classList.toggle('active', t.dataset.dtype === type));
 
@@ -6675,6 +7315,8 @@ document.addEventListener('keydown', e => {
 });
 
 loadState();
+loadSTReportViews();
+updateSTReportViewFilterOptions();
 // Reapply any saved category renames to CAT_COLORS so colors survive a refresh
 Object.entries(state.renamedCats).forEach(([orig, renamed]) => {
   if (CAT_COLORS[orig]) { CAT_COLORS[renamed] = CAT_COLORS[orig]; delete CAT_COLORS[orig]; }
@@ -7142,6 +7784,32 @@ function exportPDF(tab) {
       tableHTML = `<div class="pdf-section-title">Item Breakdown</div>
         <table class="pdf-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
     }
+  }
+
+  // ── ST REPORT ──
+  else if (tab === 'stReport') {
+    const viewFilter = stReportViewFilterVal ? `View: ${stReportViewFilterVal}` : '';
+    const plFilter = stReportProdLineFilterVal ? `Prod Line: ${stReportProdLineFilterVal}` : 'All Prod Lines';
+    const searchFilter = stReportSearchVal ? ` · Search: "${stReportSearchVal}"` : '';
+    titleText = `Stock Status Report`;
+    subtitleText = `${stReportFilename || ''}  ·  ${ST_METRIC_LABELS[stReportMetric]}  ·  ${viewFilter ? viewFilter + '  ·  ' : ''}${plFilter}${searchFilter}`;
+
+    const statsBar = document.getElementById('stReportStats');
+    if (statsBar && statsBar.style.display !== 'none') {
+      const cards = statsBar.querySelectorAll('.stat-card');
+      statsHTML = [...cards].map(c => {
+        const label = c.querySelector('.stat-label')?.textContent || '';
+        const value = c.querySelector('.stat-value')?.textContent || '';
+        const sub = c.querySelector('.stat-sub')?.textContent || '';
+        return `<div class="pdf-stat">
+          <div class="pdf-stat-label">${label}</div>
+          <div class="pdf-stat-value" style="color:#c8a84b">${value}</div>
+          <div class="pdf-stat-sub">${sub}</div>
+        </div>`;
+      }).join('');
+    }
+
+    tableHTML = buildSTReportPDFTable();
   }
 
   // Build the print page

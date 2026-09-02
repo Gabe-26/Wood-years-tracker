@@ -2279,6 +2279,7 @@ let stReportItems = null;        // array of parsed items, or null if nothing lo
 let stReportFilename = '';
 let stReportMetric = 'onHand';   // onHand | onPO | onSO | onBO | available | reorder | all
 let stReportCombineWarehouses = false;  // true = hide per-warehouse columns, show Total(s) only
+let stReportExcludedWarehouses = new Set(); // warehouse codes clicked out of the PDF (screen table still shows them all)
 let stReportProdLineFilterVal = '';
 let stReportSearchVal = '';
 let stReportSort = { col: 'itemCode', dir: 'asc' };
@@ -2349,6 +2350,7 @@ function handleSTReportFiles(files) {
     stReportProdLineFilterVal = '';
     stReportSearchVal = '';
     stReportSort = { col: 'itemCode', dir: 'asc' };
+    stReportExcludedWarehouses = new Set();
     const searchInput = document.getElementById('stReportSearchInput');
     if (searchInput) searchInput.value = '';
     renderSTReport();
@@ -2514,22 +2516,24 @@ function renderSTReportTable() {
       <th ${thStyle('itemCode')}>Item Code</th>
       <th ${thStyle('description')}>Description</th>
       <th ${thStyle('prodLine')}>Prod Line</th>
-      <th ${thStyle('avgCost')} style="text-align:right">Avg Cost</th>
       ${showWhseCols ? warehouses.map(w => `<th ${thStyle('whse:' + w)} style="text-align:right">Whse ${w}</th>`).join('') : ''}
       <th ${thStyle('total')} style="text-align:right">Total</th>
     </tr>`;
   } else {
     // ALL metrics — two-row grouped header (Whse 000 / Whse 001 / ... / Total, each spanning 6 metric sub-columns).
     // Sticky positioning is disabled here (position:static) since the two rows would otherwise overlap when scrolling.
-    const whseGroupRow1 = showWhseCols ? warehouses.map(w =>
-      `<th colspan="${metricsToShow.length}" style="text-align:center;position:static;border-left:1px solid var(--border2);">Whse ${w}</th>`
-    ).join('') : '';
+    // Click a warehouse's group header to exclude it from the PDF — the screen
+    // table keeps showing every warehouse regardless; only buildSTReportPDFTable()
+    // reads stReportExcludedWarehouses.
+    const whseGroupRow1 = showWhseCols ? warehouses.map(w => {
+      const excluded = stReportExcludedWarehouses.has(w);
+      return `<th colspan="${metricsToShow.length}" class="chart-toggleable${excluded ? ' chart-pdf-excluded' : ''}" style="text-align:center;position:static;border-left:1px solid var(--border2);cursor:pointer;" title="Click to exclude from PDF" onclick="toggleSTReportWarehouseExclusion('${w}')">Whse ${w}</th>`;
+    }).join('') : '';
     const totalGroupRow1 = `<th colspan="${metricsToShow.length}" style="text-align:center;position:static;border-left:1px solid var(--border2);">Total</th>`;
     const row1 = `<tr>
       <th rowspan="2" style="position:static;" ${thStyle('itemCode')}>Item Code</th>
       <th rowspan="2" style="position:static;" ${thStyle('description')}>Description</th>
       <th rowspan="2" style="position:static;" ${thStyle('prodLine')}>Prod Line</th>
-      <th rowspan="2" style="text-align:right;position:static;" ${thStyle('avgCost')}>Avg Cost</th>
       ${whseGroupRow1}${totalGroupRow1}
     </tr>`;
     const whseGroupRow2 = showWhseCols ? warehouses.map(w =>
@@ -2543,8 +2547,7 @@ function renderSTReportTable() {
     const fixedCells = `
       <td class="td-code">${it.itemCode}</td>
       <td class="td-desc" title="${it.description}">${it.description || '—'}</td>
-      <td class="text-muted mono">${it.prodLine || '—'}</td>
-      <td class="td-num">${it.avgCost ? '$' + it.avgCost.toFixed(3) : '—'}</td>`;
+      <td class="text-muted mono">${it.prodLine || '—'}</td>`;
     const whseCells = showWhseCols ? warehouses.map(w =>
       metricsToShow.map(m => {
         const v = (it.warehouses[w] && it.warehouses[w][m]) || 0;
@@ -2566,13 +2569,21 @@ function renderSTReportTable() {
   `;
 }
 
+function toggleSTReportWarehouseExclusion(w) {
+  if (stReportExcludedWarehouses.has(w)) stReportExcludedWarehouses.delete(w);
+  else stReportExcludedWarehouses.add(w);
+  renderSTReportTable();
+}
+
 // Builds the PDF version of the current table straight from the data model
 // (same rows/warehouses/metrics logic as renderSTReportTable) rather than
 // scraping the live DOM table — scraping flattens the two-row ALL-mode header
 // into one row, which no longer lines up with the per-row data cells.
 function buildSTReportPDFTable() {
   if (!stReportItems) return '';
-  const warehouses = getSTReportWarehouses();
+  // PDF-only filter — warehouses clicked out via toggleSTReportWarehouseExclusion()
+  // are dropped here; the screen table (renderSTReportTable) always shows all of them.
+  const warehouses = getSTReportWarehouses().filter(w => !stReportExcludedWarehouses.has(w));
   const isAll = stReportMetric === 'all';
   const metricsToShow = isAll ? ST_ALL_METRICS : [stReportMetric];
   const showWhseCols = !stReportCombineWarehouses;
@@ -2580,26 +2591,26 @@ function buildSTReportPDFTable() {
 
   let theadHTML;
   if (!isAll) {
-    const whseHeaders = showWhseCols ? warehouses.map(w => `<th class="num">Whse ${w}</th>`).join('') : '';
-    theadHTML = `<tr><th>Item Code</th><th>Description</th><th>Prod Line</th><th class="num">Avg Cost</th>${whseHeaders}<th class="num">Total</th></tr>`;
+    const whseHeaders = showWhseCols ? warehouses.map(w => `<th class="num" style="border-left:2px solid #000;">Whse ${w}</th>`).join('') : '';
+    theadHTML = `<tr><th>Item Code</th><th>Description</th><th>Prod Line</th>${whseHeaders}<th class="num" style="border-left:2px solid #000;">Total</th></tr>`;
   } else {
-    const whseGroupRow1 = showWhseCols ? warehouses.map(w => `<th colspan="${metricsToShow.length}" class="num">Whse ${w}</th>`).join('') : '';
-    const totalGroupRow1 = `<th colspan="${metricsToShow.length}" class="num">Total</th>`;
-    const row1 = `<tr><th rowspan="2">Item Code</th><th rowspan="2">Description</th><th rowspan="2">Prod Line</th><th rowspan="2" class="num">Avg Cost</th>${whseGroupRow1}${totalGroupRow1}</tr>`;
-    const whseGroupRow2 = showWhseCols ? warehouses.map(w => metricsToShow.map(m => `<th class="num">${ST_METRIC_ABBREV[m]}</th>`).join('')).join('') : '';
-    const totalGroupRow2 = metricsToShow.map(m => `<th class="num">${ST_METRIC_ABBREV[m]}</th>`).join('');
+    const whseGroupRow1 = showWhseCols ? warehouses.map(w => `<th colspan="${metricsToShow.length}" style="text-align:center;border-left:2px solid #000;">Whse ${w}</th>`).join('') : '';
+    const totalGroupRow1 = `<th colspan="${metricsToShow.length}" style="text-align:center;border-left:2px solid #000;">Total</th>`;
+    const row1 = `<tr><th rowspan="2">Item Code</th><th rowspan="2">Description</th><th rowspan="2">Prod Line</th>${whseGroupRow1}${totalGroupRow1}</tr>`;
+    const whseGroupRow2 = showWhseCols ? warehouses.map(w => metricsToShow.map((m,i) => `<th class="num" style="${i===0?'border-left:2px solid #000;':''}">${ST_METRIC_ABBREV[m]}</th>`).join('')).join('') : '';
+    const totalGroupRow2 = metricsToShow.map((m,i) => `<th class="num" style="${i===0?'border-left:2px solid #000;':''}">${ST_METRIC_ABBREV[m]}</th>`).join('');
     theadHTML = row1 + `<tr>${whseGroupRow2}${totalGroupRow2}</tr>`;
   }
 
   const bodyRows = rows.map(it => {
-    const fixedCells = `<td class="td-code">${it.itemCode}</td><td class="td-desc">${it.description || '—'}</td><td>${it.prodLine || '—'}</td><td class="num">${it.avgCost ? '$' + it.avgCost.toFixed(3) : '—'}</td>`;
+    const fixedCells = `<td class="td-code">${it.itemCode}</td><td class="td-desc">${it.description || '—'}</td><td>${it.prodLine || '—'}</td>`;
     const whseCells = showWhseCols ? warehouses.map(w =>
-      metricsToShow.map(m => {
+      metricsToShow.map((m,i) => {
         const v = (it.warehouses[w] && it.warehouses[w][m]) || 0;
-        return `<td class="num ${v === 0 ? 'zero' : ''}">${fmtSTQty(v)}</td>`;
+        return `<td class="num ${v === 0 ? 'zero' : ''}" style="${i===0?'border-left:2px solid #000;':''}">${fmtSTQty(v)}</td>`;
       }).join('')
     ).join('') : '';
-    const totalCells = metricsToShow.map(m => `<td class="num">${fmtSTQty(it.total[m] || 0)}</td>`).join('');
+    const totalCells = metricsToShow.map((m,i) => `<td class="num" style="${i===0?'border-left:2px solid #000;':''}">${fmtSTQty(it.total[m] || 0)}</td>`).join('');
     return `<tr>${fixedCells}${whseCells}${totalCells}</tr>`;
   }).join('');
 
@@ -8113,7 +8124,7 @@ function exportPDF(tab) {
     if (profitTable) {
       // Serialize the profit table rows into PDF-safe HTML, skipping excluded years
       const pHeaders = [...profitTable.querySelectorAll('thead th')].map(th =>
-        `<th style="background:#1a1a1a;color:#c8a84b;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;font-size:8px;padding:5px 7px;text-align:${th.style.textAlign||'right'};border:1px solid #333;">${th.textContent.trim()}</th>`
+        `<th style="background:#f8f2e2;color:#c8a84b;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;font-size:8px;padding:5px 7px;text-align:${th.style.textAlign||'right'};border:1px solid #e0d5b8;">${th.textContent.trim()}</th>`
       ).join('');
 
       let skipUntilNextYear = false;
@@ -8126,7 +8137,7 @@ function exportPDF(tab) {
           }
           skipUntilNextYear = false;
           const t = tr.querySelector('td')?.textContent.trim() || '';
-          return `<tr><td colspan="15" style="background:#222;color:#c8a84b;font-weight:600;font-size:10px;padding:5px 8px;border-top:2px solid #444;text-align:left;">${t}</td></tr>`;
+          return `<tr><td colspan="15" style="background:#f8f2e2;color:#c8a84b;font-weight:600;font-size:10px;padding:5px 8px;border-top:2px solid #c8a84b;text-align:left;">${t}</td></tr>`;
         }
         if (skipUntilNextYear) return '';
         return `<tr>${[...tr.querySelectorAll('td')].map((td, i) => {
@@ -8138,7 +8149,7 @@ function exportPDF(tab) {
           const isGpNeg = td.classList.contains('row-gp-neg');
           const color = isFirst ? '#888' : isGpPos ? '#4caf7d' : isGpNeg ? '#e05c5c' : isCogs ? '#999' : label ? '#5b9bd5' : '#555';
           const fw = (td.style.fontWeight === '600' || isGpPos || isGpNeg) ? '600' : '400';
-          return `<td style="padding:4px 7px;border-bottom:1px solid #2a2a2a;text-align:${isFirst?'left':'right'};color:${color};font-weight:${fw};font-size:9px;white-space:nowrap;">${t}</td>`;
+          return `<td style="padding:4px 7px;border-bottom:1px solid #e0e0e0;text-align:${isFirst?'left':'right'};color:${color};font-weight:${fw};font-size:9px;white-space:nowrap;">${t}</td>`;
         }).join('')}</tr>`;
       }).join('');
 

@@ -8053,8 +8053,22 @@ function exportPDF(tab) {
         `<td class="num" style="background:rgba(200,168,75,0.16);font-weight:600;">${fmt(projTotal)}</td>`;
       return `<tr>${cells}</tr>`;
     }).join('');
-    tableHTML = `<div class="pdf-section-title">Projections by Item</div>
-      <table class="pdf-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+    // 12 periods × (Base + Proj) can be 24+ data columns — too wide to print
+    // at normal size even in landscape. Shrink font/padding in tiers based on
+    // the actual column count (after exclusions) so nothing falls off the
+    // page, and force table-layout:fixed so columns share the page width
+    // instead of each demanding its own natural content width.
+    const totalCols = 4 + cols.length * 2 + 1;
+    let denseCSS = '';
+    if (totalCols > 20) {
+      denseCSS = '<style>.proj-pdf-table th,.proj-pdf-table td{padding:2px 3px !important;font-size:6.5px !important;white-space:normal !important;word-break:break-word;}</style>';
+    } else if (totalCols > 14) {
+      denseCSS = '<style>.proj-pdf-table th,.proj-pdf-table td{padding:3px 4px !important;font-size:7.5px !important;white-space:normal !important;word-break:break-word;}</style>';
+    } else if (totalCols > 10) {
+      denseCSS = '<style>.proj-pdf-table th,.proj-pdf-table td{padding:4px 5px !important;font-size:8.5px !important;}</style>';
+    }
+    tableHTML = `${denseCSS}<div class="pdf-section-title">Projections by Item</div>
+      <table class="pdf-table proj-pdf-table" style="table-layout:fixed;width:100%;"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   // ── ITEM DETAIL ──
@@ -8403,11 +8417,24 @@ function exportPDF(tab) {
     ${profitPageHTML}
   `;
 
+  // Projections can run to 12 periods × 2 (Base/Proj) columns — too wide for
+  // portrait. Print landscape for this tab only; the override is injected
+  // right before printing and removed in the same cleanup pass that clears
+  // printArea, so it never touches any other tab's export.
+  let orientationStyleEl = null;
+  if (tab === 'projections') {
+    orientationStyleEl = document.createElement('style');
+    orientationStyleEl.id = 'pdfLandscapeOverride';
+    orientationStyleEl.textContent = '@page { size: landscape; margin: 0.4in; }';
+    document.head.appendChild(orientationStyleEl);
+  }
+
   setTimeout(() => {
     window.print();
     setTimeout(() => {
       printArea.style.display = 'none';
       printArea.innerHTML = '';
+      if (orientationStyleEl) { orientationStyleEl.remove(); orientationStyleEl = null; }
     }, 1000);
   }, 600);
 }
